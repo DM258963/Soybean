@@ -1,0 +1,23 @@
+:root {
+    --soy-primary: #4f772d;
+    --soy-secondary: #90a955;
+    --soy-accent: #dda15e;
+    --soy-bg: #fefae0;
+    --soy-bg-soft: #f3f7ed;
+
+    --bg: var(--soy-bg);
+    --panel-bg: var(--soy-bg-soft);
+    --nav-bg: var(--soy-primary);
+    --nav-highlight: var(--soy-accent);
+    --text-main: #243018;
+    --text-soft: #55663c;
+    --line-soft: #d7e2c9;
+
+    --green-soft-1: #f3f7ed;
+    --green-soft-2: #eaf2dd;
+    --green-soft-3: #e0ebcf;
+    --green-soft-4: #d6e4c0;
+
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.13);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+}

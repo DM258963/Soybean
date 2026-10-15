@@ -1,0 +1,215 @@
+.site-header {
+    background: var(--nav-bg);
+    color: #f7f9fc;
+    margin: 0 auto;
+    max-width: 1480px;
+    box-shadow: var(--shadow-lg);
+    border-bottom: 2px solid #3d5f25;
+}
+
+.brand-wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 18px 22px 8px;
+}
+
+.brand-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.brand-icon {
+    width: 72px;
+    height: 50px;
+    border-radius: 58% 42% 55% 45% / 60% 45% 55% 40%;
+    border: 2px solid #d8b44d;
+    background: radial-gradient(circle at 26% 28%, #fff8c9 0, #f3d872 46%, #d6a835 100%);
+    box-shadow: inset -6px -8px 0 rgba(143, 102, 22, 0.24), 0 3px 8px rgba(0, 0, 0, 0.24);
+    position: relative;
+    transform: rotate(-16deg);
+}
+
+.brand-icon::before {
+    content: "";
+    position: absolute;
+    width: 24px;
+    height: 16px;
+    left: 10px;
+    top: 8px;
+    border-radius: 60%;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.brand-icon::after {
+    content: "";
+    position: absolute;
+    width: 24px;
+    height: 30px;
+    right: 14px;
+    top: 9px;
+    border-left: 2px solid rgba(124, 82, 16, 0.36);
+    border-radius: 58% 42% 55% 45% / 60% 45% 55% 40%;
+    transform: rotate(6deg);
+}
+
+.brand-title {
+    margin: 0;
+    font-family: "Merriweather", serif;
+    font-size: clamp(2rem, 3.2vw, 4.4rem);
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: 0.015em;
+}
+
+.brand-title span {
+    color: var(--nav-highlight);
+}
+
+.brand-subtitle {
+    margin: 6px 0 0;
+    font-size: clamp(1.1rem, 1.8vw, 1.8rem);
+    font-style: italic;
+    font-family: "Merriweather", serif;
+    color: #edf3dc;
+}
+
+.menu-toggle {
+    display: none;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    background: rgba(255, 255, 255, 0.07);
+    color: #f5f7fb;
+    font-family: "Barlow Condensed", sans-serif;
+    font-size: 1.3rem;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.top-nav {
+    border-top: 2px solid rgba(221, 161, 94, 0.95);
+    margin: 0 18px;
+}
+
+.nav-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: flex-end;
+    align-items: stretch;
+}
+
+.nav-item {
+    position: relative;
+}
+
+.nav-item > a,
+.nav-item > .nav-parent-btn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 46px;
+    padding: 0 14px;
+    font-family: "Barlow Condensed", sans-serif;
+    font-size: 2rem;
+    color: #f7f9f2;
+    letter-spacing: 0.02em;
+    transition: background 0.2s ease;
+}
+
+.nav-item > .nav-parent-btn {
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.nav-item.active > a,
+.nav-item.active > .nav-parent-btn,
+.nav-item > a:hover,
+.nav-item > .nav-parent-btn:hover {
+    background: var(--nav-highlight);
+    color: #ffffff;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 110px;
+    margin: 0;
+    padding: 8px 0;
+    list-style: none;
+    background: #f6f9ef;
+    border: 1px solid #cbd9b8;
+    box-shadow: var(--shadow-sm);
+    display: none;
+    z-index: 5;
+}
+
+.has-dropdown:hover .dropdown-menu,
+.has-dropdown.open .dropdown-menu {
+    display: block;
+}
+
+.dropdown-menu li a {
+    display: block;
+    padding: 10px 14px;
+    color: #2f4d1d;
+    font-family: "Barlow Condensed", sans-serif;
+    font-size: 1.8rem;
+}
+
+.dropdown-menu li.active a,
+.dropdown-menu li a:hover {
+    background: #e7efd8;
+}
+
+@media (max-width: 980px) {
+    .brand-wrap {
+        align-items: center;
+        padding: 14px;
+    }
+
+    .brand-icon {
+        width: 56px;
+        height: 40px;
+    }
+
+    .brand-subtitle {
+        margin-top: 4px;
+    }
+
+    .menu-toggle {
+        display: inline-block;
+    }
+
+    .top-nav {
+        margin: 0;
+        display: none;
+        border-top-width: 1px;
+    }
+
+    .top-nav.open {
+        display: block;
+    }
+
+    .nav-list {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .nav-item > a,
+    .nav-item > .nav-parent-btn {
+        min-height: 42px;
+        justify-content: center;
+        width: 100%;
+    }
+
+    .dropdown-menu {
+        position: static;
+        border-left: 4px solid var(--soy-secondary);
+        box-shadow: none;
+    }
+}

@@ -1,0 +1,199 @@
+﻿{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/ptm_search.css') }}?v=20260612a">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ static_url(request, 'js/ptm_search.js') }}?v=20260612a"></script>
+{% endblock %}
+
+{% block content %}
+<section class="panel ptm-search-page">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">PTM Search</h2>
+        <p class="panel-subtitle">Species-aware motif and crosstalk query</p>
+    </div>
+
+    <div class="intro-card">
+        <p><strong>PTM Search</strong> finds PTM-constrained sequence patterns in <strong>{{ fixed_species }}</strong> proteins and returns matched sites with surrounding sequence.</p>
+        <p>Examples: <code>K(ub)</code>, <code>M(ub|ac)</code>, <code>M(ub&amp;ac)</code>, <code>[ST](st)P</code>, <code>M(xx)K</code>.</p>
+        <p>Current version supports letters, <code>X</code>/<code>.</code>, <code>[...]</code>, and PTM constraints. Repetition operators such as <code>? + * {}</code> are not enabled yet.</p>
+    </div>
+
+    <div class="query-card">
+        <form method="get" action="{{ route_url(request, 'search_ptm') }}" class="ptm-form">
+            <input type="hidden" name="representative_only_present" value="1">
+            <fieldset class="segmented-field" data-segmented-control>
+                <legend>Species</legend>
+                <input id="species" type="hidden" name="species" value="{{ selected_species }}">
+                <div class="segmented-options">
+                {% for option in species_options %}
+                    <button
+                        type="button"
+                        class="segmented-option {% if option.value == selected_species %}active{% endif %}"
+                        value="{{ option.value }}"
+                        aria-pressed="{% if option.value == selected_species %}true{% else %}false{% endif %}"
+                    >{{ option.label }}</button>
+                {% endfor %}
+                </div>
+            </fieldset>
+
+            <label for="expression">Search Expression</label>
+            <div class="expression-input-wrap">
+                <input
+                    id="expression"
+                    name="expression"
+                    type="text"
+                    placeholder=""
+                    value="{{ expression_query }}"
+                    required
+                >
+                <div
+                    class="expression-example-text"
+                    data-expression-example
+                    title="Select example text to copy"
+                    {% if expression_query %}hidden{% endif %}
+                >Example: [ST](st)P or K(ub)</div>
+            </div>
+            <small>At least one PTM constraint in parentheses is required, for example <code>K(ub)</code>.</small>
+
+            <details class="advanced-box" open>
+                <summary>Advanced Options</summary>
+                <div class="advanced-grid">
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="representative_only" {% if representative_only %}checked{% endif %}>
+                        <span>Representative Only</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="peptides_unique" {% if peptides_unique %}checked{% endif %}>
+                        <span>Peptides Unique</span>
+                    </label>
+
+                    <label class="field-item">
+                        <span>Sequence Length</span>
+                        <input type="number" name="sequence_length" value="{{ sequence_length }}" min="3" max="30">
+                    </label>
+                </div>
+            </details>
+
+            <button type="submit" class="search-btn">SEARCH</button>
+        </form>
+    </div>
+
+    {% if message %}
+    <div class="info-box warning">{{ message }}</div>
+    {% endif %}
+
+    <section class="results-card">
+        <h3>Search Output</h3>
+
+        {% if page_meta.total_rows > 0 %}
+        <div class="results-summary-row">
+            <div class="results-meta results-meta-top">
+                Showing {{ page_meta.start_row }}-{{ page_meta.end_row }} of {{ page_meta.total_rows }} site rows |
+                Matched proteins: {{ summary.matched_proteins }}
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="result-table result-like-shot">
+                <thead>
+                    <tr>
+                        <th>↕ Protein ID</th>
+                        <th>↕ Description</th>
+                        <th>PTM pos</th>
+                        <th>Surrounding Sequence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in grouped_rows %}
+                        {% for site in group.site_rows %}
+                        <tr>
+                            {% if loop.first %}
+                            <td rowspan="{{ group.rowspan }}" class="protein-col">
+                                {% if group.protein_accession %}
+                                <a
+                                    class="protein-link"
+                                    href="https://www.uniprot.org/uniprotkb/{{ group.protein_accession | trim }}/entry"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >{{ group.gene_name or group.protein_accession }}</a>
+                                {% else %}
+                                {{ group.gene_name }}
+                                {% endif %}
+                            </td>
+                            <td rowspan="{{ group.rowspan }}" class="desc-col">{{ group.protein_description or '-' }}</td>
+                            {% endif %}
+                            <td class="pos-col">{{ site.ptm_position }}</td>
+                            <td class="seq-col">
+                                <code class="seq-left">{{ site.left_context }}</code><code class="seq-hit">{{ site.hit_aa }}</code><code class="seq-right">{{ site.right_context }}</code>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="results-toolbar">
+            <form method="get" action="{{ route_url(request, 'search_ptm') }}" class="pager-controls">
+                <input type="hidden" name="expression" value="{{ expression_query }}">
+                <input type="hidden" name="species" value="{{ selected_species }}">
+                <input type="hidden" name="sequence_length" value="{{ sequence_length }}">
+                <input type="hidden" name="representative_only_present" value="1">
+                {% if representative_only %}<input type="hidden" name="representative_only" value="1">{% endif %}
+                {% if peptides_unique %}<input type="hidden" name="peptides_unique" value="1">{% endif %}
+
+                <span class="pager-label">Page</span>
+                <button class="pager-btn" type="submit" name="page" value="{{ page_meta.prev_page }}" {% if page_meta.current_page <= 1 %}disabled{% endif %}>&lt;</button>
+                <input class="pager-input" type="number" name="page" min="1" max="{{ page_meta.total_pages }}" value="{{ page_meta.current_page }}">
+                <button class="pager-btn" type="submit" name="page" value="{{ page_meta.next_page }}" {% if page_meta.current_page >= page_meta.total_pages %}disabled{% endif %}>&gt;</button>
+                <span class="pager-total">of {{ page_meta.total_pages }}</span>
+
+                <label class="page-size-label" for="page_size">Results per page</label>
+                <select id="page_size" name="page_size" class="page-size-select" onchange="this.form.submit()">
+                    {% for option in page_size_options %}
+                    <option value="{{ option }}" {% if option == page_meta.page_size %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            <div class="table-actions">
+                <button
+                    type="button"
+                    class="export-btn"
+                    data-download-table=".result-table"
+                    data-download-filename="ptm-search-results.csv"
+                >Download CSV</button>
+            </div>
+        </div>
+        {% else %}
+        <div class="info-box">Enter an expression and click SEARCH. Results will appear here.</div>
+        {% endif %}
+    </section>
+
+    <section class="reference-card">
+        <h3>Available PTM Types</h3>
+        <table class="ref-table">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Tag</th>
+                    <th>Description</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in ptm_reference_rows %}
+                <tr>
+                    <td>{{ row.code }}</td>
+                    <td>{{ row.tag }}</td>
+                    <td>{{ row.label }}</td>
+                    <td><code>{{ row.example }}</code></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+</section>
+{% endblock %}

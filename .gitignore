@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+.env
+.env.*
+!.env.example
+
+# Node / frontend
+node_modules/
+dist/
+build/
+
+# Local databases and generated datasets
+pg_data/
+data/
+import_ready/
+blastdb_cache/
+*.db
+*.sqlite
+*.csv
+*.xlsx
+*.xls
+*.fasta
+*.fa
+*.raw
+*.tif
+*.tiff
+
+# Docker / logs
+*.log
+
+# Model artifacts
+*.pth
+*.pt
+*.onnx
+*.pkl
+*.zip
+*.rar
+
+# IDE
+.vscode/
+.idea/
+
+# Local credentials
+腾讯云账号.txt
+*credentials*.txt
+*secrets*.txt
+/操作手册/
+/数据处理/
+# OS
+.DS_Store
+Thumbs.db

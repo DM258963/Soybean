@@ -1,0 +1,9 @@
+fastapi>=0.111,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.7,<3.0
+jinja2>=3.1,<4.0
+pandas>=2.0,<3.0
+openpyxl>=3.1,<4.0
+certifi>=2024.0
+psycopg[binary]>=3.1,<4.0
+pillow>=10,<12

@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/home.css') }}?v=20260611c">
+{% endblock %}
+
+{% block content %}
+<section class="panel hero-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">Soybean Nodule PTM Viewer</h2>
+    </div>
+    <div class="hero-grid">
+        <div class="hero-visual">
+            <img class="hero-image" src="{{ static_url(request, 'img/home/image01.png') }}" alt="Hero image">
+        </div>        
+        <div class="hero-copy">
+            <p>Soybean PTM Viewer is a centralized resource for soybean post-translational modifications (PTMs) designed for both wet-lab and dry-lab scientists.</p>
+            <p>Use intuitive modules to search proteins, discover PTM motifs, browse curated entries, and perform list-level PTM analysis.</p>
+            <p>The platform supports data submission and offers expandable modules so your team can add more pages later without refactoring the core layout.</p>
+        </div>
+    </div>
+</section>
+
+<section class="panel feature-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">Features</h2>
+    </div>
+
+    <article class="feature-row feature-cyan">
+        <div class="feature-left">
+            <img class="feature-photo" src="{{ static_url(request, 'img/home/protein-search.png') }}" alt="Protein Search">
+        </div>
+        <div class="feature-right">
+            <h3>Protein Search</h3>
+            <p>Search soybean or rhizobium proteins by gene name, UniProt accession, short identifier, or exact protein sequence.</p>
+            <p>The result page links PTM records to the annotated protein sequence, highlights modified residues, summarizes site counts, and provides downloadable site tables for follow-up analysis.</p>
+            <ul class="feature-points">
+                <li>Supports fuzzy identifier matching and multi-ID batch queries.</li>
+                <li>Displays residue-level PTM sites with sequence context and quantification charts.</li>
+            </ul>
+        </div>
+    </article>
+
+    <article class="feature-row feature-lilac">
+        <div class="feature-left">
+            <img class="feature-photo" src="{{ static_url(request, 'img/home/ptm-search.png') }}" alt="PTM Search">
+        </div>
+        <div class="feature-right">
+            <h3>PTM Search</h3>
+            <p>Query PTM patterns across curated soybean nodule datasets with motif-style expressions such as single modifications, alternative modifications, or combined crosstalk events.</p>
+            <p>This module helps identify candidate regulatory sites by PTM type, amino acid position, surrounding sequence pattern, and protein annotation.</p>
+            <ul class="feature-points">
+                <li>Finds PTM motifs and co-occurring modification patterns.</li>
+                <li>Filters results by species, PTM type, peptide uniqueness, and representative protein records.</li>
+            </ul>
+        </div>
+    </article>
+
+    <article class="feature-row feature-peach">
+        <div class="feature-left">
+            <img class="feature-photo" src="{{ static_url(request, 'img/home/ptm-blast.png') }}" alt="PTM BLAST">
+        </div>
+        <div class="feature-right">
+            <h3>PTM BLAST</h3>
+            <p>Paste a protein sequence and compare it against the local PTM-enabled protein database to find homologous proteins with known modification sites.</p>
+            <p>Aligned hits preserve PTM annotations so conserved or shifted modification positions can be inspected directly in the protein alignment context.</p>
+            <ul class="feature-points">
+                <li>Combines sequence similarity search with PTM-aware hit summaries.</li>
+                <li>Useful for transferring candidate PTM evidence across related proteins or families.</li>
+            </ul>
+        </div>
+    </article>
+
+    <article class="feature-row feature-blue">
+        <div class="feature-left">
+            <img class="feature-photo" src="{{ static_url(request, 'img/home/list-analysis.png') }}" alt="List Analysis">
+        </div>
+        <div class="feature-right">
+            <h3>List Analysis</h3>
+            <p>Analyze submitted protein lists against the PTM database to summarize modification abundance, affected protein counts, and PTM-type distribution.</p>
+            <p>The workflow is designed for proteomics result interpretation, helping compare candidate protein sets with the background PTM collection in this viewer.</p>
+            <ul class="feature-points">
+                <li>Summarizes PTM counts and enrichment-style signals for protein groups.</li>
+                <li>Exports tables and graphics for reports, manuscripts, or downstream scripts.</li>
+            </ul>
+        </div>
+    </article>
+</section>
+
+<section class="panel stats-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">PTM Viewer Data</h2>
+    </div>
+    <!-- <div class="stats-text stats-overview">
+        <h3>Stored PTMs</h3>
+        {% if stats_error %}
+        <p class="stats-error">{{ stats_error }}</p>
+        {% endif %}
+        <p>
+            Soybean Nodule PTM Viewer currently contains
+            <strong>{{ stats.total_sites_fmt }}</strong> PTM sites matching
+            <strong>{{ stats.total_proteins_fmt }}</strong> proteins.
+        </p>
+    </div> -->
+
+    <div class="species-module-list">
+        {% for species in stats.species_stats %}
+        <section class="species-stats-module">
+            <div class="species-stats-info stats-text">
+                <h4>{{ species.display }}</h4>
+                <p>
+                    <strong>{{ species.total_sites_fmt }}</strong> PTM sites matching
+                    <strong>{{ species.total_proteins_fmt }}</strong> proteins.
+                </p>
+                <ul class="stats-list">
+                    {% for item in species.ptm_items %}
+                    <li>
+                        <span class="stats-code" style="background: {{ item.bg }}; color: {{ item.fg }};">{{ item.code }}</span>
+                        <span class="stats-name">{{ item.label }}</span>:
+                        <span class="stats-sites" style="color: {{ item.bg }};">{{ item.site_count_fmt }}</span>
+                        sites in
+                        <span class="stats-proteins">{{ item.protein_count_fmt }}</span>
+                        proteins
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="pie-block">
+                <div class="pie-svg-wrap">{{ species.pie_svg | safe }}</div>
+                <ul class="pie-legend">
+                    {% for item in species.pie_items %}
+                    <li>
+                        <span class="legend-swatch" style="background: {{ item.bg }};"></span>
+                        <span class="legend-code">{{ item.code }}</span>
+                        <span class="legend-percent">{{ item.percent_fmt }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+</section>
+
+{% endblock %}

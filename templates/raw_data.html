@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/home.css') }}?v=20260508b">
+{% endblock %}
+
+{% block content %}
+<section class="panel data-tables-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">Raw Data Tables</h2>
+    </div>
+    <div class="data-table-wrap">
+        <table class="data-table-list">
+            <thead>
+                <tr>
+                    <th>File</th>
+                    <th>Species</th>
+                    <th>Data type</th>
+                    <th>Rows</th>
+                    <th>File size</th>
+                    <th>Preview</th>
+                    <th>Download</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for table in home_data_tables %}
+                <tr>
+                    <td>{{ table.filename }}</td>
+                    <td>{{ table.species }}</td>
+                    <td>{{ table.data_type }}</td>
+                    <td>{{ table.rows_fmt if table.exists else "-" }}</td>
+                    <td>{{ table.size }}</td>
+                    <td>
+                        {% if table.exists %}
+                        <a class="data-download-link" href="{{ table.view_url }}">View Table</a>
+                        {% else %}
+                        <span class="data-missing">Missing</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if table.exists %}
+                        <a class="data-download-link" href="{{ table.download_url }}">Download CSV</a>
+                        {% else %}
+                        <span class="data-missing">Missing</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

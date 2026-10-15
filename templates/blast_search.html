@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/ptm_search.css') }}?v=20260612a">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ static_url(request, 'js/ptm_search.js') }}?v=20260612a"></script>
+{% endblock %}
+
+{% block content %}
+<section class="panel ptm-search-page">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">PTM BLAST</h2>
+        <p class="panel-subtitle">Find similar PTM proteins from a query sequence</p>
+    </div>
+
+    <div class="intro-card">
+        <p><strong>PTM BLAST</strong> searches submitted protein sequences against PTM-annotated proteins in <strong>{{ selected_species_label }}</strong>.</p>
+        <p>The first result table gives an overview of each matched protein, including BLAST parameters and PTM site totals. Open a row to inspect detailed modification sites.</p>
+    </div>
+
+    <div class="query-card">
+        <form method="get" action="{{ route_url(request, 'search_blast') }}" class="ptm-form">
+            <fieldset class="segmented-field" data-segmented-control>
+                <legend>Species</legend>
+                <input id="species" type="hidden" name="species" value="{{ selected_species }}">
+                <div class="segmented-options">
+                {% for option in species_options %}
+                    <button
+                        type="button"
+                        class="segmented-option {% if option.value == selected_species %}active{% endif %}"
+                        value="{{ option.value }}"
+                        aria-pressed="{% if option.value == selected_species %}true{% else %}false{% endif %}"
+                    >{{ option.label }}</button>
+                {% endfor %}
+                </div>
+            </fieldset>
+
+            <label for="sequence">Query Protein Sequence</label>
+            <textarea
+                id="sequence"
+                name="sequence"
+                rows="7"
+                placeholder="input protein sequence or FASTA"
+                required
+            >{{ sequence_query }}</textarea>
+            <small>FASTA headers are allowed. The query sequence should contain at least 10 amino acids.</small>
+
+            <label class="field-item" for="max_hits">
+                <span>Max Hits</span>
+                <input id="max_hits" type="number" name="max_hits" value="{{ max_hits }}" min="5" max="100">
+            </label>
+
+            <button type="submit" class="search-btn">SEARCH</button>
+        </form>
+    </div>
+
+    {% if message %}
+    <div class="info-box warning">{{ message }}</div>
+    {% endif %}
+
+    <section class="results-card">
+        <h3>BLAST Output</h3>
+
+        {% if result_rows %}
+        <div class="results-toolbar">
+            <div class="results-meta">
+                Query length: {{ summary.query_length }} aa |
+                Database candidates: {{ summary.candidate_count }} |
+                Showing top {{ result_rows|length }} hits
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <div class="table-actions">
+                <button
+                    type="button"
+                    class="export-btn"
+                    data-download-table=".blast-result-table"
+                    data-download-filename="ptm-blast-overview.csv"
+                >Download Overview</button>
+            </div>
+            <table class="result-table result-like-shot blast-result-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Description</th>
+                        <th>Species</th>
+                        <th>#PTMs</th>
+                        <th>#PTM Types</th>
+                        <th>PLAZA Gene ID</th>
+                        <th>UniProt ID(s)</th>
+                        <th>E-value</th>
+                        <th>Bit Score</th>
+                        <th>Identity % </th>
+                        <th>Query Cover</th>
+                        <th>Gaps</th>
+                        <th data-export-skip="true">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in result_rows %}
+                    <tr>
+                        <td>
+                            <strong>{{ row.display_id or row.gene_name or row.protein_accession }}</strong>
+                        </td>
+                        <td>{{ row.description or row.protein_description or '-' }}</td>
+                        <td>{{ row.organism or '-' }}</td>
+                        <td>{{ row.total_sites }}</td>
+                        <td>{{ row.modification_type_count }}</td>
+                        <td>{{ row.plaza_gene_id or '-' }}</td>
+                        <td>{{ row.uniprot_ids or row.protein_accession or '-' }}</td>
+                        <td>{{ row.e_value_display }}</td>
+                        <td>{{ row.bit_score_display }}</td>
+                        <td>{{ row.identity_display }}</td>
+                        <td>{{ row.query_cover_display }}</td>
+                        <td>{{ row.gaps }}</td>
+                        <td data-export-skip="true" class="row-actions">
+                            <a
+                                class="match-open-btn"
+                                href="{{ route_url(request, 'search_blast_detail') }}?species={{ selected_species|urlencode }}&identifier={{ row.select_key|urlencode }}&sequence={{ sequence_query|urlencode }}&max_hits={{ max_hits }}"
+                            >Details</a>
+                            <a
+                                class="match-download-btn"
+                                href="{{ route_url(request, 'download_protein_sites') }}?species={{ selected_species|urlencode }}&identifier={{ row.select_key|urlencode }}"
+                            >Download</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="info-box">input a protein sequence and click SEARCH. BLAST hits will appear here.</div>
+        {% endif %}
+    </section>
+</section>
+{% endblock %}
