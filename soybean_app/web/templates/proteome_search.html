@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20260704a">
+{% endblock %}
+
+{% block content %}
+<section class="panel protein-search-page">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">Protein Expression Profiles</h2>
+    </div>
+
+    <div class="search-tabs" aria-label="Proteome Search Type Tabs">
+        <a
+            class="tab-btn {% if search_tab == 'identifier' %}active{% endif %}"
+            href="{{ route_url(request, 'proteome_search') }}?tab=identifier&species={{ selected_species|urlencode }}"
+        >SEARCH BY IDENTIFIER</a>
+        <a
+            class="tab-btn {% if search_tab == 'sequence' %}active{% endif %}"
+            href="{{ route_url(request, 'proteome_search') }}?tab=sequence&species={{ selected_species|urlencode }}"
+        >SEARCH BY SEQUENCE</a>
+    </div>
+
+    <div class="search-card">
+        {% if search_tab == 'sequence' %}
+        <form method="get" action="{{ route_url(request, 'proteome_search') }}" class="search-form">
+            <input type="hidden" name="tab" value="sequence">
+
+            <fieldset class="segmented-field" data-segmented-control>
+                <legend>Species</legend>
+                <input id="species_sequence" type="hidden" name="species" value="{{ selected_species }}">
+                <div class="segmented-options">
+                {% for option in species_options %}
+                    <button
+                        type="button"
+                        class="segmented-option {% if option.value == selected_species %}active{% endif %}"
+                        value="{{ option.value }}"
+                        aria-pressed="{% if option.value == selected_species %}true{% else %}false{% endif %}"
+                    >{{ option.label }}</button>
+                {% endfor %}
+                </div>
+            </fieldset>
+
+            <label for="sequence">Sequence</label>
+            <textarea id="sequence" name="sequence" rows="4" required>{{ sequence_query }}</textarea>
+            <small>String of amino acids or FASTA input. BLAST results retain all database proteins; missing quantitative data are shown as NA.</small>
+
+            <div class="blast-threshold-grid" aria-label="BLAST thresholds">
+                <label class="field-item" for="identity_min">
+                    <span>Identity >= (%)</span>
+                    <input id="identity_min" type="number" name="identity_min" value="{{ blast_identity_min }}" min="0" max="100" step="0.1">
+                </label>
+                <label class="field-item" for="e_value_max">
+                    <span>E-value <=</span>
+                    <input id="e_value_max" type="text" name="e_value_max" value="{{ blast_e_value_max }}">
+                </label>
+                <label class="field-item" for="query_cover_min">
+                    <span>Query Coverage >= (%)</span>
+                    <input id="query_cover_min" type="number" name="query_cover_min" value="{{ blast_query_cover_min }}" min="0" max="100" step="0.1">
+                </label>
+                <label class="field-item" for="max_hits">
+                    <span>Max Hits</span>
+                    <input id="max_hits" type="number" name="max_hits" value="{{ blast_max_hits }}" min="5" max="100">
+                </label>
+            </div>
+
+            <button type="submit" class="search-btn">SEARCH</button>
+        </form>
+        {% else %}
+        <form method="get" action="{{ route_url(request, 'proteome_search') }}" class="search-form">
+            <input type="hidden" name="tab" value="identifier">
+
+            <fieldset class="segmented-field" data-segmented-control>
+                <legend>Species</legend>
+                <input id="species_identifier" type="hidden" name="species" value="{{ selected_species }}">
+                <div class="segmented-options">
+                {% for option in species_options %}
+                    <button
+                        type="button"
+                        class="segmented-option {% if option.value == selected_species %}active{% endif %}"
+                        value="{{ option.value }}"
+                        aria-pressed="{% if option.value == selected_species %}true{% else %}false{% endif %}"
+                    >{{ option.label }}</button>
+                {% endfor %}
+                </div>
+            </fieldset>
+
+            <label for="gene_name">Protein Identifier</label>
+            <div class="identifier-input-wrap">
+                <textarea id="gene_name" name="gene_name" rows="3" required>{{ gene_query }}</textarea>
+                <div
+                    class="identifier-example-text"
+                    data-identifier-example
+                    title="Select example text to copy"
+                    {% if gene_query %}hidden{% endif %}
+                >
+                    {% if selected_species == 'bradyrhizobium_diazoefficiens' %}Example: H7C6D6 or hupA{% else %}Example: I1J4B5 or GLYMA_15G065100{% endif %}
+                </div>
+            </div>
+            <small>Search by Protein accession, Gene name, Transcript ID, Gene Names, Phytozome/Glyma ID, or protein description. Multiple IDs can be separated by comma, semicolon, space, or new line.</small>
+
+            <button type="submit" class="search-btn">SEARCH</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="result-card">
+        <h3>Search Result</h3>
+
+        {% if message %}
+        <div class="info-box {% if not proteome_rows %}warning{% endif %}">{{ message }}</div>
+        {% endif %}
+
+        {% if search_tab == 'identifier' and not gene_query %}
+        <div class="info-box">Enter a protein identifier above and click SEARCH. Protein expression profiles will be shown here.</div>
+        {% elif search_tab == 'sequence' and not sequence_query %}
+        <div class="info-box">Enter a protein sequence above and click SEARCH. BLAST hits will be shown here.</div>
+        {% endif %}
+
+        {% if search_tab == 'sequence' and proteome_rows %}
+        <div class="results-toolbar integrated-blast-summary">
+            <div class="results-meta">
+                Query length: {{ sequence_blast_summary.query_length }} aa |
+                Database candidates: {{ sequence_blast_summary.candidate_count }} |
+                Showing {{ proteome_rows|length }} hits
+            </div>
+            {% if downloads_enabled %}
+            <div class="table-actions">
+                <button
+                    type="button"
+                    class="export-btn"
+                    data-download-table=".proteome-result-table"
+                    data-download-filename="proteome-sequence-results.csv"
+                >Download Overview</button>
+            </div>
+            {% endif %}
+        </div>
+        {% elif proteome_rows and downloads_enabled %}
+        <div class="table-actions">
+            <button
+                type="button"
+                class="export-btn"
+                data-download-table=".proteome-result-table"
+                data-download-filename="proteome-identifier-results.csv"
+            >Download Overview</button>
+        </div>
+        {% endif %}
+
+        {% if proteome_rows %}
+        <div class="match-table-wrap">
+            <table class="match-table sequence-blast-table proteome-result-table" data-sortable-table>
+                <thead>
+                    <tr>
+                        <th>
+                            <button type="button" class="sort-header" data-sort-index="0" data-sort-type="text">
+                                <span>Query ID</span><span class="sort-icon" aria-hidden="true">&#8597;</span>
+                            </button>
+                        </th>
+                        <th>Description</th>
+                        <th>Species</th>
+                        <th>Phytozome ID</th>
+                        <th>UniProt ID</th>
+                        {% for tp in expression_timepoints %}
+                        <th>
+                            <button type="button" class="sort-header" data-sort-index="{{ loop.index + 4 }}" data-sort-type="number">
+                                <span>{{ tp }}</span><span class="sort-icon" aria-hidden="true">&#8597;</span>
+                            </button>
+                        </th>
+                        {% endfor %}
+                        <th>Status</th>
+                        {% if search_tab == 'sequence' %}
+                        <th>E-value</th>
+                        <th>Bit Score</th>
+                        <th>Identity %</th>
+                        <th>Query Cover</th>
+                        <th>Gaps</th>
+                        {% endif %}
+                        <th data-export-skip="true">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in proteome_rows %}
+                    <tr>
+                        <td data-sort-value="{{ row.display_id or row.protein_accession or '-' }}"><strong>{{ row.display_id or row.protein_accession or '-' }}</strong></td>
+                        <td>{{ row.description or '-' }}</td>
+                        <td>{{ row.organism or selected_species_label or '-' }}</td>
+                        <td>
+                            {% set phytozome_ids = external_id_tokens(row.plaza_gene_id) %}
+                            {% if phytozome_ids %}
+                            <span class="external-id-list">
+                                {% for item in phytozome_ids %}
+                                <a class="external-id-link" href="{{ phytozome_gene_url(item) }}" target="_blank" rel="noopener noreferrer">{{ item }}</a>
+                                {% endfor %}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set uniprot_ids = external_id_tokens(row.uniprot_ids or row.protein_accession) %}
+                            {% if uniprot_ids %}
+                            <span class="external-id-list">
+                                {% for item in uniprot_ids %}
+                                <a class="external-id-link" href="{{ uniprot_entry_url(item) }}" target="_blank" rel="noopener noreferrer">{{ item }}</a>
+                                {% endfor %}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        {% for tp in expression_timepoints %}
+                        {% set value = row.timepoint_values[tp] %}
+                        <td data-sort-value="{% if value != 'NA' %}{{ value }}{% endif %}">{{ value }}</td>
+                        {% endfor %}
+                        <td>{{ row.status }}</td>
+                        {% if search_tab == 'sequence' %}
+                        <td>{{ row.e_value_display }}</td>
+                        <td>{{ row.bit_score_display }}</td>
+                        <td>{{ row.identity_display }}</td>
+                        <td>{{ row.query_cover_display }}</td>
+                        <td>{{ row.gaps }}</td>
+                        {% endif %}
+                        <td data-export-skip="true" class="row-actions">
+                            <a
+                                class="match-open-btn"
+                                href="{{ route_url(request, 'proteome_detail') }}?species={{ selected_species|urlencode }}&identifier={{ row.select_key|urlencode }}&return_tab={{ search_tab|urlencode }}&return_query={{ (gene_query if search_tab == 'identifier' else sequence_query)|urlencode }}"
+                            >Details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20260612d"></script>
+{% endblock %}

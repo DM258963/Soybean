@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+
+# Node / frontend
+node_modules/
+dist/
+build/
+
+# Database
+pg_data/
+runtime/
+*.db
+*.sqlite
+
+# Docker / logs
+*.log
+
+# Model / data
+*.pth
+*.pt
+*.onnx
+*.zip
+*.rar
+data/
+data/import_ready/*.csv
+blastdb_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+import_ready/*.csv

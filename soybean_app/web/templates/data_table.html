@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/home.css') }}?v=20260512a">
+{% endblock %}
+
+{% block content %}
+<section class="panel data-tables-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">Raw Data Table</h2>
+        <p class="panel-subtitle">{{ table_meta.filename }}</p>
+    </div>
+
+    <div class="data-table-summary">
+        <div><strong>Species:</strong> {{ table_meta.species or "-" }}</div>
+        <div><strong>Data type:</strong> {{ table_meta.data_type or "-" }}</div>
+        <div><strong>Total rows:</strong> {{ page_meta.total_rows }}</div>
+        <div class="data-table-actions">
+            <a class="data-download-link" href="{{ route_url(request, 'raw_data') }}">Back to Raw Data</a>
+            {% if downloads_enabled and table_meta.download_url %}
+            <a class="data-download-link" href="{{ table_meta.download_url }}">Download CSV</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if message %}
+    <div class="data-message">{{ message }}</div>
+    {% endif %}
+
+    {% if headers and rows %}
+    <div class="data-pager">
+        <form method="get" action="{{ route_url(request, 'data_table') }}" class="data-pager-form">
+            <input type="hidden" name="dataset" value="{{ table_meta.dataset }}">
+            <span>Page</span>
+            <button type="submit" name="page" value="{{ page_meta.prev_page }}" {% if page_meta.current_page <= 1 %}disabled{% endif %}>&lt;</button>
+            <input type="number" name="page" min="1" max="{{ page_meta.total_pages }}" value="{{ page_meta.current_page }}">
+            <button type="submit" name="page" value="{{ page_meta.next_page }}" {% if page_meta.current_page >= page_meta.total_pages %}disabled{% endif %}>&gt;</button>
+            <span>of {{ page_meta.total_pages }}</span>
+
+            <label for="page_size">Rows per page</label>
+            <select id="page_size" name="page_size" onchange="this.form.submit()">
+                {% for option in page_size_options %}
+                <option value="{{ option }}" {% if option == page_meta.page_size %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+            </select>
+        </form>
+        <div>Showing {{ page_meta.start_row }}-{{ page_meta.end_row }} of {{ page_meta.total_rows }}</div>
+    </div>
+
+    <div class="data-table-wrap raw-preview-wrap">
+        <table class="data-table-list raw-preview-table">
+            <thead>
+                <tr>
+                    {% for header in headers %}
+                    <th>{{ header }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    {% for cell in row %}
+                    <td><div class="raw-cell">{{ cell }}</div></td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% elif not message %}
+    <div class="data-message">No rows found in this dataset.</div>
+    {% endif %}
+</section>
+{% endblock %}

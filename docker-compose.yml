@@ -1,0 +1,14 @@
+name: ptm
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: ${PTM_DB_USER:-myuser}
+      POSTGRES_PASSWORD: ${PTM_DB_PASSWORD:-wowangle}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - "${PTM_DB_PORT:-5432}:5432"
+    volumes:
+      - ${PTM_PG_DATA_DIR:-./runtime/pg_data}:/var/lib/postgresql/data
+      - ./deploy/postgres/initdb:/docker-entrypoint-initdb.d:ro

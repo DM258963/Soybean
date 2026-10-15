@@ -1,0 +1,571 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20260704a">
+{% endblock %}
+
+{% block content %}
+<section class="panel protein-search-page">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">Protein Search</h2>
+    </div>
+
+    <div class="search-tabs" aria-label="Search Type Tabs">
+        <a
+            class="tab-btn {% if search_tab == 'identifier' %}active{% endif %}"
+            href="{{ route_url(request, 'search_protein') }}?tab=identifier&species={{ selected_species|urlencode }}"
+        >SEARCH BY IDENTIFIER</a>
+        <a
+            class="tab-btn {% if search_tab == 'sequence' %}active{% endif %}"
+            href="{{ route_url(request, 'search_protein') }}?tab=sequence&species={{ selected_species|urlencode }}"
+        >SEARCH BY SEQUENCE</a>
+        <!-- <span class="tab-btn disabled">SEARCH BY DESCRIPTION</span> -->    
+    </div>
+
+    <div class="search-card">
+        {% if search_tab == 'sequence' %}
+        <form method="get" action="{{ route_url(request, 'search_protein') }}" class="search-form">
+            <input type="hidden" name="tab" value="sequence">
+
+            <fieldset class="segmented-field" data-segmented-control>
+                <legend>Species</legend>
+                <input id="species_sequence" type="hidden" name="species" value="{{ selected_species }}">
+                <div class="segmented-options">
+                {% for option in species_options %}
+                    <button
+                        type="button"
+                        class="segmented-option {% if option.value == selected_species %}active{% endif %}"
+                        value="{{ option.value }}"
+                        aria-pressed="{% if option.value == selected_species %}true{% else %}false{% endif %}"
+                    >{{ option.label }}</button>
+                {% endfor %}
+                </div>
+            </fieldset>
+
+            <label for="sequence">Sequence</label>
+            <textarea
+                id="sequence"
+                name="sequence"
+                rows="4"
+                placeholder="Paste amino acid sequence (exact match)"
+                required
+            >{{ sequence_query }}</textarea>
+            <small>String of amino acids or FASTA input. BLAST search uses the thresholds below.</small>
+
+            <div class="blast-threshold-grid" aria-label="BLAST thresholds">
+                <label class="field-item" for="identity_min">
+                    <span>Identity >= (%)</span>
+                    <input id="identity_min" type="number" name="identity_min" value="{{ blast_identity_min }}" min="0" max="100" step="0.1">
+                </label>
+                <label class="field-item" for="e_value_max">
+                    <span>E-value <=</span>
+                    <input id="e_value_max" type="text" name="e_value_max" value="{{ blast_e_value_max }}">
+                </label>
+                <label class="field-item" for="query_cover_min">
+                    <span>Query Coverage >= (%)</span>
+                    <input id="query_cover_min" type="number" name="query_cover_min" value="{{ blast_query_cover_min }}" min="0" max="100" step="0.1">
+                </label>
+                <label class="field-item" for="max_hits">
+                    <span>Max Hits</span>
+                    <input id="max_hits" type="number" name="max_hits" value="{{ blast_max_hits }}" min="5" max="100">
+                </label>
+            </div>
+
+            <button type="submit" class="search-btn">SEARCH</button>
+        </form>
+        {% else %}
+        <form method="get" action="{{ route_url(request, 'search_protein') }}" class="search-form">
+            <input type="hidden" name="tab" value="identifier">
+
+            <fieldset class="segmented-field" data-segmented-control>
+                <legend>Species</legend>
+                <input id="species_identifier" type="hidden" name="species" value="{{ selected_species }}">
+                <div class="segmented-options">
+                {% for option in species_options %}
+                    <button
+                        type="button"
+                        class="segmented-option {% if option.value == selected_species %}active{% endif %}"
+                        value="{{ option.value }}"
+                        aria-pressed="{% if option.value == selected_species %}true{% else %}false{% endif %}"
+                    >{{ option.label }}</button>
+                {% endfor %}
+                </div>
+            </fieldset>
+
+            <label for="gene_name">Protein Identifier</label>
+            <div class="identifier-input-wrap">
+                <textarea
+                    id="gene_name"
+                    name="gene_name"
+                    rows="3"
+                    placeholder=""
+                    required
+                >{{ gene_query }}</textarea>
+                <div
+                    class="identifier-example-text"
+                    data-identifier-example
+                    title="Select example text to copy"
+                    {% if gene_query %}hidden{% endif %}
+                >
+                    {% if selected_species == 'bradyrhizobium_diazoefficiens' %}Example: rpoC or Q89J75{% else %}Example: GLYMA_10G142500{% endif %}
+                </div>
+            </div>
+            <small>Search by Protein accession, Gene name, Transcript ID, or Gene Names. Multiple IDs can be separated by comma, semicolon, space, or new line.</small>
+
+            <button type="submit" class="search-btn">SEARCH</button>
+        </form>
+        {% endif %}
+    </div>
+
+    <div class="result-card">
+        <h3>Search Result</h3>
+
+        {% if message %}
+        <div class="info-box warning">{{ message }}</div>
+        {% endif %}
+
+        {% if result_meta %}
+        {% elif search_tab == 'identifier' and not gene_query %}
+        <div class="info-box">
+            Enter a Gene name above and click SEARCH. The table and sequence result will be shown here.
+        </div>
+        {% elif search_tab == 'sequence' and not sequence_query %}
+        <div class="info-box">
+            Enter a protein sequence above and click SEARCH. BLAST hits will be shown here.
+        </div>
+        {% endif %}
+
+        {% if search_tab == 'sequence' and sequence_blast_rows %}
+        <div class="results-toolbar integrated-blast-summary">
+            <div class="results-meta">
+                Query length: {{ sequence_blast_summary.query_length }} aa |
+                Database candidates: {{ sequence_blast_summary.candidate_count }} |
+                Showing {{ sequence_blast_rows|length }} hits
+            </div>
+            {% if downloads_enabled %}
+            <div class="table-actions">
+                <button
+                    type="button"
+                    class="export-btn"
+                    data-download-table=".sequence-blast-table"
+                    data-download-filename="sequence-blast-results.csv"
+                >Download Overview</button>
+            </div>
+            {% endif %}
+        </div>
+        <div class="match-table-wrap">
+            <table class="match-table sequence-blast-table">
+                <thead>
+                    <tr>
+                        <th>Query ID</th>
+                        <th>Description</th>
+                        <th>Species</th>
+                        <th>#PTMs</th>
+                        <th>#PTM Types</th>
+                        <th>Phytozome ID</th>
+                        <th>UniProt ID</th>
+                        <th>E-value</th>
+                        <th>Bit Score</th>
+                        <th>Identity %</th>
+                        <th>Query Cover</th>
+                        <th>Gaps</th>
+                        <th data-export-skip="true">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in sequence_blast_rows %}
+                    <tr>
+                        <td><strong>{{ row.display_id or row.gene_name or row.protein_accession or '-' }}</strong></td>
+                        <td>{{ row.description or row.protein_description or '-' }}</td>
+                        <td>{{ row.organism or selected_species_label or '-' }}</td>
+                        <td>{{ row.total_sites or '0' }}</td>
+                        <td>{{ row.modification_type_count or '0' }}</td>
+                        <td>
+                            {% set phytozome_ids = external_id_tokens(row.plaza_gene_id) %}
+                            {% if phytozome_ids %}
+                            <span class="external-id-list">
+                                {% for item in phytozome_ids %}
+                                <a class="external-id-link" href="{{ phytozome_gene_url(item) }}" target="_blank" rel="noopener noreferrer">{{ item }}</a>
+                                {% endfor %}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set uniprot_ids = external_id_tokens(row.uniprot_ids or row.protein_accession) %}
+                            {% if uniprot_ids %}
+                            <span class="external-id-list">
+                                {% for item in uniprot_ids %}
+                                <a class="external-id-link" href="{{ uniprot_entry_url(item) }}" target="_blank" rel="noopener noreferrer">{{ item }}</a>
+                                {% endfor %}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ row.e_value_display }}</td>
+                        <td>{{ row.bit_score_display }}</td>
+                        <td>{{ row.identity_display }}</td>
+                        <td>{{ row.query_cover_display }}</td>
+                        <td>{{ row.gaps }}</td>
+                        <td data-export-skip="true" class="row-actions">
+                            {% if row.has_ptm and row.select_key %}
+                            <a
+                                class="match-open-btn"
+                                href="{{ route_url(request, 'search_blast_detail') }}?species={{ selected_species|urlencode }}&identifier={{ row.select_key|urlencode }}&sequence={{ sequence_query|urlencode }}&max_hits={{ blast_max_hits }}&identity_min={{ blast_identity_min }}&e_value_max={{ blast_e_value_max }}&query_cover_min={{ blast_query_cover_min }}"
+                            >Details</a>
+                            {% if downloads_enabled %}
+                            <a
+                                class="match-download-btn"
+                                href="{{ route_url(request, 'download_protein_sites') }}?species={{ selected_species|urlencode }}&identifier={{ row.select_key|urlencode }}"
+                                data-server-download
+                                data-loading-message="Preparing site details, please wait..."
+                                data-loading-label="Preparing..."
+                            >Download</a>
+                            {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if show_identifier_match_table and identifier_match_rows %}
+        {% if downloads_enabled %}
+        <div class="table-actions">
+            <button
+                type="button"
+                class="export-btn"
+                data-download-table=".match-table"
+                data-download-filename="protein-identifier-matches.csv"
+            >Download CSV</button>
+        </div>
+        {% endif %}
+        <div class="match-table-wrap">
+            <table class="match-table">
+                <thead>
+                    <tr>
+                        <th>Gene name</th>
+                        <th>Protein accession</th>
+                        <th>Organism</th>
+                        <th>Matched sites</th>
+                        <th data-export-skip="true">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in identifier_match_rows %}
+                    <tr>
+                        <td>{{ row.gene_name }}</td>
+                        <td>{{ row.protein_accession }}</td>
+                        <td>{{ row.organism }}</td>
+                        <td>{{ row.site_count }}</td>
+                        <td data-export-skip="true">
+                            <a
+                                class="match-open-btn"
+                                href="{{ route_url(request, 'search_protein') }}?tab=identifier&view=detail&species={{ selected_species|urlencode }}&gene_name={{ row.select_key|urlencode }}&return_gene_name={{ gene_query|urlencode }}"
+                            >View details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if show_batch_summary_table and batch_summary_rows %}
+        {% if downloads_enabled %}
+        <div class="table-actions">
+            <a
+                class="export-btn"
+                href="{{ route_url(request, 'download_protein_sites_batch') }}?species={{ selected_species|urlencode }}&identifiers={{ batch_download_identifiers|urlencode }}"
+                data-server-download
+                data-download-method="post"
+                data-download-url="{{ route_url(request, 'download_protein_sites_batch') }}"
+                data-download-identifiers="{{ batch_download_identifiers }}"
+                data-download-species="{{ selected_species }}"
+                data-download-filename="protein-sites-batch.csv"
+                data-loading-message="Preparing all matched PTM site details. Large downloads may take a few minutes..."
+                data-loading-label="Preparing..."
+            >Download All Details</a>
+            <button
+                type="button"
+                class="export-btn"
+                data-download-table=".batch-summary-table"
+                data-download-filename="protein-batch-overview.csv"
+            >Download Overview</button>
+        </div>
+        {% endif %}
+        <div class="match-table-wrap">
+            <table class="match-table batch-summary-table">
+                <thead>
+                    <tr>
+                        <th>Query ID</th>
+                        <th>Description</th>
+                        <th>Species</th>
+                        <th>#PTMs</th>
+                        <th>#PTM Types</th>
+                        <th>Phytozome ID</th>
+                        <th>UniProt ID</th>
+                        <th>Status</th>
+                        <th data-export-skip="true">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in batch_summary_rows %}
+                    <tr>
+                        <td>{{ row.display_id or row.query or '-' }}</td>
+                        <td>{{ row.description or row.protein_description or '-' }}</td>
+                        <td>{{ row.organism or '-' }}</td>
+                        <td>{{ row.total_sites }}</td>
+                        <td>{{ row.modification_type_count }}</td>
+                        <td>
+                            {% set phytozome_ids = external_id_tokens(row.plaza_gene_id) %}
+                            {% if phytozome_ids %}
+                            <span class="external-id-list">
+                                {% for item in phytozome_ids %}
+                                <a class="external-id-link" href="{{ phytozome_gene_url(item) }}" target="_blank" rel="noopener noreferrer">{{ item }}</a>
+                                {% endfor %}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set uniprot_ids = external_id_tokens(row.uniprot_ids or row.protein_accession) %}
+                            {% if uniprot_ids %}
+                            <span class="external-id-list">
+                                {% for item in uniprot_ids %}
+                                <a class="external-id-link" href="{{ uniprot_entry_url(item) }}" target="_blank" rel="noopener noreferrer">{{ item }}</a>
+                                {% endfor %}
+                            </span>
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td>{{ row.status }}</td>
+                        <td data-export-skip="true" class="row-actions">
+                            {% if row.has_result %}
+                            <a
+                                class="match-open-btn"
+                                href="{{ route_url(request, 'search_protein') }}?tab=identifier&view=detail&species={{ selected_species|urlencode }}&gene_name={{ row.select_key|urlencode }}&return_gene_name={{ gene_query|urlencode }}"
+                            >Details</a>
+                            {% if downloads_enabled %}
+                            <a
+                                class="match-download-btn"
+                                href="{{ route_url(request, 'download_protein_sites') }}?species={{ selected_species|urlencode }}&identifier={{ row.select_key|urlencode }}"
+                                data-server-download
+                                data-loading-message="Preparing site details, please wait..."
+                                data-loading-label="Preparing..."
+                            >Download</a>
+                            {% endif %}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if result_rows %}
+        {% if return_gene_query %}
+        <div class="detail-return-row">
+            <a
+                class="detail-return-btn"
+                href="{{ route_url(request, 'search_protein') }}?tab=identifier&species={{ selected_species|urlencode }}&gene_name={{ return_gene_query|urlencode }}"
+            >Back to search results</a>
+        </div>
+        {% endif %}
+        {% include "_protein_ptm_map.html" %}
+        <div class="result-layout">
+            <aside class="result-side">
+                {% if result_meta.protein_accession %}
+                <div class="result-side-tools">
+                    <a
+                        class="uniprot-open-btn"
+                        href="https://www.uniprot.org/uniprotkb/{{ result_meta.protein_accession | trim }}/entry"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Open UniProt Entry
+                    </a>
+                </div>
+                {% endif %}
+                <div class="meta-grid compact">
+                    <div><strong>Gene name:</strong> {{ result_meta.gene_name }}</div>
+                    <div><strong>Protein accession:</strong> {{ result_meta.protein_accession }}</div>
+                    <div><strong>Organism:</strong> {{ result_meta.organism }}</div>
+                    <div><strong>Total PTM sites:</strong> {{ result_meta.total_sites }}</div>
+                    <div class="full"><strong>Description:</strong> {{ result_meta.protein_description }}</div>
+                </div>
+
+                <div class="site-table-wrap">
+                    {% if downloads_enabled %}
+                    <div class="table-actions compact">
+                        <button
+                            type="button"
+                            class="export-btn"
+                            data-download-table=".site-table"
+                            data-download-filename="protein-sites-{{ result_meta.gene_name|default('result')|replace(' ', '_') }}.csv"
+                            data-protein-sequence="{{ protein_sequence_export }}"
+                        >Download CSV</button>
+                    </div>
+                    {% endif %}
+                    <table class="site-table" data-sortable-table>
+                        <thead>
+                            <tr>
+                                <th>
+                                    <button type="button" class="sort-header" data-sort-index="0" data-sort-type="number" aria-label="Sort by Position">
+                                        <span>Position</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th>
+                                    <button type="button" class="sort-header" data-sort-index="1" data-sort-type="text" aria-label="Sort by Amino acid">
+                                        <span>Amino acid</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th>
+                                    <button type="button" class="sort-header" data-sort-index="2" data-sort-type="text" aria-label="Sort by PTM types">
+                                        <span>PTM types</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th>
+                                    <button type="button" class="sort-header" data-sort-index="3" data-sort-type="number" aria-label="Sort by W12/W4 ratio">
+                                        <span>W12/W4 ratio</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                                <th>
+                                    <button type="button" class="sort-header" data-sort-index="4" data-sort-type="text" aria-label="Sort by W12/W4 type">
+                                        <span>W12/W4 type</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                    </button>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in result_rows %}
+                            <tr
+                                class="site-row {% if row['Site id'] == site_chart_default_id %}is-selected{% endif %}"
+                                data-site-id="{{ row['Site id'] }}"
+                                data-position="{{ row['Position'] }}"
+                                tabindex="0"
+                                role="button"
+                                aria-label="Show quantification chart for site {{ row['Position display'] }} {{ row['Amino acid display'] }} {{ row['PTM types'] }}"
+                            >
+                                <td data-sort-value="{{ row['Position'] if row['Position'] is not none else '' }}">{{ row["Position display"] }}</td>
+                                <td>{{ row["Amino acid display"] }}</td>
+                                <td>{{ row["PTM types"] }}</td>
+                                <td data-sort-value="{{ row['W12/W4 ratio'] if row['W12/W4 ratio'] is not none else '' }}">{{ row["W12/W4 ratio"] if row["W12/W4 ratio"] is not none else "-" }}</td>
+                                <td>{{ row["W12/W4 Type"] or "-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </aside>
+
+            <div class="sequence-figure">
+                <div class="figure-title">
+                    <div class="sequence-headline">
+                        <div class="sequence-label">Sequence</div>
+                        <div class="sequence-length">Length: {{ sequence_length }}</div>
+                    </div>
+                </div>
+
+                <div class="figure-body">
+                    {% for line in sequence_rows %}
+                    <div class="seq-line">
+                        <span class="line-index">{{ line.start }}</span>
+                        <div class="line-middle">
+                            <div class="line-content {% if line.is_full %}full-line{% endif %}">
+                                {%- for cell in line.cells -%}
+                                <span class="aa-slot">
+                                    <span
+                                        class="aa {% if cell.highlight %}marked{% endif %}"
+                                        {% if cell.highlight %}
+                                        data-ptm-codes="{{ cell.ptm_codes|join(',') }}"
+                                        data-position="{{ cell.position }}"
+                                        style="background: {{ cell.bg_style }}; color: {{ cell.fg }};"
+                                        title="Position {{ cell.position }} | PTM: {{ cell.ptm_text }}"
+                                        {% endif %}
+                                    >{{ cell.aa }}</span>
+                                </span>
+                                {%- endfor -%}
+                            </div>
+                            <div class="line-track"></div>
+                        </div>
+                        <span class="line-index end">{{ line.end }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                {% if legend_items %}
+                <div class="ptm-legend">
+                    {% for item in legend_items %}
+                    <span class="legend-chip" data-ptm-code="{{ item.code }}" style="background: {{ item.bg }}; color: {{ item.fg }};">
+                        {{ item.label }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% include "_expression_profile.html" %}
+
+                {% if result_rows %}
+                <div class="site-chart-panel" id="site-chart-panel" data-default-site-id="{{ site_chart_default_id }}">
+                    <div class="site-chart-head">
+                        <div>
+                            <div class="site-chart-title">Site Quantification</div>
+                            <div class="site-chart-target" id="site-chart-target">-</div>
+                        </div>
+                        {% if downloads_enabled %}
+                        <button type="button" class="export-btn chart-download-btn" id="download-site-chart">Download</button>
+                        {% endif %}
+                    </div>
+                    <div class="site-chart-bars">
+                        <div class="chart-y-axis" aria-hidden="true">
+                            <div class="chart-y-scale">
+                                <span class="chart-y-tick chart-y-tick-max" id="chart-y-tick-max">-</span>
+                                <span class="chart-y-tick chart-y-tick-75" id="chart-y-tick-75">-</span>
+                                <span class="chart-y-tick chart-y-tick-50" id="chart-y-tick-50">-</span>
+                                <span class="chart-y-tick chart-y-tick-25" id="chart-y-tick-25">-</span>
+                                <span class="chart-y-tick chart-y-tick-0" id="chart-y-tick-0">0</span>
+                            </div>
+                        </div>
+                        <div class="chart-col">
+                            <div class="chart-bar-wrap">
+                                <div class="chart-bar chart-bar-w4" id="chart-bar-w4"></div>
+                            </div>
+                            <div class="chart-value" id="chart-value-w4">-</div>
+                            <div class="chart-label">W4 Mean</div>
+                        </div>
+                        <div class="chart-col">
+                            <div class="chart-bar-wrap">
+                                <div class="chart-bar chart-bar-w12" id="chart-bar-w12"></div>
+                            </div>
+                            <div class="chart-value" id="chart-value-w12">-</div>
+                            <div class="chart-label">W12 Mean</div>
+                        </div>
+                    </div>
+                    <div class="site-chart-meta" id="site-chart-meta">Ratio: - | Subcellular localization: - | P-value: - | Type: -</div>
+                    <div class="site-chart-note">Bar values use anti-log2 means from the three replicates in each group.</div>
+                </div>
+                <script id="site-chart-data" type="application/json">{{ site_chart_data_json | safe }}</script>
+                {% endif %}
+            </div>
+        </div>
+
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20260702a"></script>
+{% endblock %}

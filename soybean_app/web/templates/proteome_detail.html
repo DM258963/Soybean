@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20260704a">
+{% endblock %}
+
+{% block content %}
+<section class="panel protein-search-page">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">Protein Expression Profiles</h2>
+    </div>
+
+    <div class="result-card">
+        <div class="detail-return-row">
+            <a
+                class="detail-return-btn"
+                href="{{ route_url(request, 'proteome_search') }}?tab={{ return_tab|urlencode }}&species={{ selected_species|urlencode }}&{% if return_tab == 'sequence' %}sequence{% else %}gene_name{% endif %}={{ return_query|urlencode }}"
+            >Back to search results</a>
+        </div>
+
+        <h3>Protein Expression Profile</h3>
+
+        {% if message %}
+        <div class="info-box {% if not expression_profile.available %}warning{% endif %}">{{ message }}</div>
+        {% endif %}
+
+        <div class="meta-grid">
+            <div><strong>Protein accession:</strong> {{ expression_meta.protein_accession or identifier }}</div>
+            <div><strong>Gene name:</strong> {{ expression_meta.gene_name or '-' }}</div>
+            <div><strong>Organism:</strong> {{ expression_meta.organism or selected_species_label }}</div>
+            <div><strong>Sequence length:</strong> {{ expression_meta.sequence_length or '-' }}</div>
+            <div class="full"><strong>Description:</strong> {{ expression_meta.description or '-' }}</div>
+        </div>
+
+        {% include "_expression_profile.html" %}
+
+        {% if replicate_rows %}
+        <div class="site-table-wrap expression-replicate-wrap">
+            <table class="site-table" data-sortable-table>
+                <thead>
+                    <tr>
+                        <th>Stage</th>
+                        <th>Mean</th>
+                        <th>SD</th>
+                        <th>Replicate count</th>
+                        <th>Replicate values</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in replicate_rows %}
+                    <tr>
+                        <td>{{ row.label }}</td>
+                        <td>{{ row.mean }}</td>
+                        <td>{{ row.sd }}</td>
+                        <td>{{ row.replicate_count }}</td>
+                        <td>{{ row.replicates|join(', ') if row.replicates else 'NA' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20260612d"></script>
+{% endblock %}

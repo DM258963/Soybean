@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Soybean Nodule PTM Viewer V1.0 - {{ title }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700;900&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ static_url(request, 'css/variables.css') }}">
+    <link rel="stylesheet" href="{{ static_url(request, 'css/layout.css') }}">
+    <link rel="stylesheet" href="{{ static_url(request, 'css/components.css') }}">
+    {% if hermes_assistant_enabled %}
+    <link rel="stylesheet" href="{{ static_url(request, 'css/hermes_chat.css') }}">
+    {% endif %}
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% include "components/navbar.html" %}
+
+    <main class="main-container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script src="{{ static_url(request, 'js/navigation.js') }}"></script>
+    <script src="{{ static_url(request, 'js/loading_feedback.js') }}"></script>
+    {% if hermes_assistant_enabled %}
+    <script src="{{ static_url(request, 'js/hermes_chat.js') }}"></script>
+    {% endif %}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

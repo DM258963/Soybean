@@ -1,0 +1,50 @@
+{% if expression_profile %}
+<div class="expression-panel">
+    <div class="expression-head">
+        <div>
+            <div class="expression-title">Protein Expression</div>
+            <div class="expression-source">{{ expression_profile.dataset_label }} | {{ expression_profile.dataset_display }}</div>
+        </div>
+    </div>
+
+    {% if expression_profile.available %}
+    <div class="expression-chart">
+        <div class="expression-axis" aria-hidden="true">
+            {% for label in expression_profile.axis_labels %}
+            <span class="expression-axis-label axis-{{ loop.index }}">{{ label }}</span>
+            {% endfor %}
+        </div>
+        <div class="expression-bars">
+            {% for point in expression_profile.timepoints %}
+            <div class="expression-col">
+                <div
+                    class="expression-plot"
+                    style="--bar-height: {{ point.bar_percent }}; --err-bottom: {{ point.error_bottom_percent }}; --err-top: {{ point.error_top_percent }};"
+                >
+                    {% if point.mean is not none %}
+                    <span class="expression-value">{{ point.mean_display }}</span>
+                    {% if point.sd is not none %}
+                    <span
+                        class="expression-error"
+                        title="SD: {{ point.sd_display }}"
+                    ></span>
+                    {% endif %}
+                    <span
+                        class="expression-bar"
+                        title="{{ point.label }} mean: {{ point.mean_display }} | Replicates: {{ point.replicate_count }}"
+                    ></span>
+                    {% else %}
+                    <span class="expression-missing">-</span>
+                    {% endif %}
+                </div>
+                <div class="expression-label">{{ point.label }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="expression-note">Error bars: SD; n is based on available replicates.</div>
+    {% else %}
+    <div class="expression-empty">No expression data matched this protein accession.</div>
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/auth.css') }}?v=20260630b">
+{% endblock %}
+
+{% block content %}
+<section class="panel auth-panel auth-admin-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">User Management</h2>
+        <p class="panel-subtitle">Create tester accounts and control download permissions.</p>
+    </div>
+
+    {% if message %}
+    <div class="auth-message auth-success">{{ message }}</div>
+    {% endif %}
+    {% if error %}
+    <div class="auth-message auth-error">{{ error }}</div>
+    {% endif %}
+
+    <section class="auth-card">
+        <h3>Create User</h3>
+        <form method="post" action="{{ route_url(request, 'admin_create_user') }}" class="auth-create-form">
+            <div class="auth-field">
+                <label for="new_username">Username</label>
+                <input id="new_username" name="username" type="text" autocomplete="off" required>
+            </div>
+
+            <div class="auth-field">
+                <label for="new_password">Password</label>
+                <div class="auth-password-stack">
+                    <input id="new_password" name="password" type="password" autocomplete="new-password" data-password-field="create-password" required>
+                    <label class="auth-check auth-show-password">
+                        <input type="checkbox" data-password-toggle data-password-target="create-password">
+                        <span>Show</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="auth-field">
+                <label for="new_role">Role</label>
+                <select id="new_role" name="role">
+                    <option value="tester">tester</option>
+                    <option value="admin">admin</option>
+                </select>
+            </div>
+
+            <div class="auth-field auth-field-check">
+                <span class="auth-field-label">Downloads</span>
+                <label class="auth-check">
+                    <input type="checkbox" name="can_download" checked>
+                    <span>Allow downloads</span>
+                </label>
+            </div>
+
+            <div class="auth-field auth-field-submit">
+                <span class="auth-field-label" aria-hidden="true">&nbsp;</span>
+                <button type="submit" class="auth-primary-btn">Create</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="auth-card">
+        <h3>Existing Users</h3>
+        {% if users %}
+        <div class="auth-table-wrap">
+            <table class="auth-user-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Downloads</th>
+                        <th>Active</th>
+                        <th>Lock</th>
+                        <th>Last login</th>
+                        <th>New password</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user.username }}</td>
+                        <td>
+                                <select name="role" form="user-form-{{ user.user_id }}" aria-label="Role for {{ user.username }}">
+                                    <option value="tester" {% if user.role == 'tester' %}selected{% endif %}>tester</option>
+                                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>admin</option>
+                                </select>
+                        </td>
+                        <td>
+                                <label class="auth-check auth-check-compact">
+                                    <input type="checkbox" name="can_download" form="user-form-{{ user.user_id }}" {% if user.can_download %}checked{% endif %}>
+                                    <span>Allow</span>
+                                </label>
+                        </td>
+                        <td>
+                                <label class="auth-check auth-check-compact">
+                                    <input type="checkbox" name="is_active" form="user-form-{{ user.user_id }}" {% if user.is_active %}checked{% endif %}>
+                                    <span>Active</span>
+                                </label>
+                        </td>
+                        <td>
+                            {% if user.is_locked %}
+                            <span class="auth-lock-badge">Locked</span>
+                            {% else %}
+                            <span class="auth-unlocked-badge">OK</span>
+                            {% endif %}
+                            <div class="auth-failed-count">{{ user.failed_login_count }} failed</div>
+                        </td>
+                        <td>{{ user.last_login_at or '-' }}</td>
+                        <td>
+                                <div class="auth-password-stack">
+                                    <input id="reset-password-{{ user.user_id }}" name="new_password" form="user-form-{{ user.user_id }}" type="password" autocomplete="new-password" placeholder="Leave unchanged" data-password-field="reset-password-{{ user.user_id }}">
+                                    <label class="auth-check auth-show-password">
+                                        <input type="checkbox" data-password-toggle data-password-target="reset-password-{{ user.user_id }}">
+                                        <span>Show</span>
+                                    </label>
+                                </div>
+                        </td>
+                        <td>
+                                <div class="auth-action-stack">
+                                <form id="user-form-{{ user.user_id }}" method="post" action="{{ route_url(request, 'admin_update_user') }}" class="auth-row-form">
+                                    <input type="hidden" name="user_id" value="{{ user.user_id }}">
+                                    <button type="submit" class="auth-secondary-btn">Save</button>
+                                </form>
+                                <form method="post" action="{{ route_url(request, 'admin_delete_user') }}" class="auth-row-form" onsubmit="return confirm('Delete user {{ user.username }}? This cannot be undone.');">
+                                    <input type="hidden" name="user_id" value="{{ user.user_id }}">
+                                    <button type="submit" class="auth-danger-btn">Delete</button>
+                                </form>
+                                </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="auth-empty">No users found.</div>
+        {% endif %}
+    </section>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ static_url(request, 'js/auth.js') }}?v=20260630a"></script>
+{% endblock %}

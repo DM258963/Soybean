@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="panel page-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">{{ page.title }}</h2>
+        <p class="panel-subtitle">{{ page.subtitle }}</p>
+    </div>
+
+    <div class="page-grid">
+        <div class="page-content">
+            <p>{{ page.description }}</p>
+        </div>
+        <aside class="page-actions">
+            <h3>Quick Actions</h3>
+            <ul>
+                {% for action in page.actions %}
+                <li><a href="#">{{ action }}</a></li>
+                {% endfor %}
+            </ul>
+        </aside>
+    </div>
+</section>
+{% endblock %}

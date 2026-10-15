@@ -1,0 +1,100 @@
+{% if protein_ptm_map and protein_ptm_map.available %}
+<div class="protein-map-panel">
+    <div class="protein-map-head">
+        <div>
+            <div class="protein-map-title">Protein PTM Map</div>
+            <div class="protein-map-subtitle">{{ protein_ptm_map.protein_title }}</div>
+        </div>
+        <div class="protein-map-stats">
+            <span>Length: {{ protein_ptm_map.length }}</span>
+            <span>PTM sites: {{ protein_ptm_map.site_count }}</span>
+        </div>
+    </div>
+    <div class="protein-map-scroll">
+        <svg
+            class="protein-map-svg"
+            viewBox="0 0 1000 {{ protein_ptm_map.view_height }}"
+            role="img"
+            aria-label="Protein PTM map for {{ protein_ptm_map.protein_title }}"
+        >
+            <rect x="0" y="0" width="1000" height="{{ protein_ptm_map.view_height }}" class="protein-map-bg"></rect>
+            <line
+                x1="{{ protein_ptm_map.axis.left }}"
+                y1="{{ protein_ptm_map.axis.track_y }}"
+                x2="{{ protein_ptm_map.axis.right }}"
+                y2="{{ protein_ptm_map.axis.track_y }}"
+                class="protein-map-backbone"
+            ></line>
+            {% for feature in protein_ptm_map.features %}
+            <g class="protein-map-feature">
+                <title>{{ feature.title }}</title>
+                <rect
+                    x="{{ feature.x }}"
+                    y="{{ feature.y }}"
+                    width="{{ feature.width }}"
+                    height="18"
+                    rx="2"
+                    style="fill: {{ feature.fill }};"
+                ></rect>
+                {% if feature.show_label %}
+                <text
+                    x="{{ feature.x + (feature.width / 2) }}"
+                    y="{{ feature.y + 13 }}"
+                    text-anchor="middle"
+                    class="protein-map-feature-label"
+                >{{ feature.label[:28] }}{% if feature.label|length > 28 %}...{% endif %}</text>
+                {% endif %}
+            </g>
+            {% endfor %}
+            {% for site in protein_ptm_map.sites %}
+            <g
+                class="protein-map-site"
+                data-site-id="{{ site.site_id }}"
+                data-site-ids="{{ site.site_ids }}"
+                data-position="{{ site.position }}"
+                data-ptm-codes="{{ site.ptm_codes|join(',') }}"
+                tabindex="0"
+                role="button"
+                aria-label="{{ site.title }}"
+            >
+                <title>{{ site.title }}</title>
+                <line
+                    x1="{{ site.x }}"
+                    y1="{{ site.y + 7 }}"
+                    x2="{{ site.x }}"
+                    y2="{{ site.line_y }}"
+                    class="protein-map-site-line"
+                ></line>
+                <circle
+                    cx="{{ site.x }}"
+                    cy="{{ site.y }}"
+                    r="8"
+                    class="protein-map-site-dot"
+                    style="fill: {{ site.bg }};"
+                ></circle>
+                {% if site.show_label %}
+                <text
+                    x="{{ site.x }}"
+                    y="{{ site.y - 12 }}"
+                    text-anchor="middle"
+                    class="protein-map-site-label"
+                >{{ site.label }}</text>
+                {% endif %}
+            </g>
+            {% endfor %}
+            <line
+                x1="{{ protein_ptm_map.axis.left }}"
+                y1="{{ protein_ptm_map.axis.axis_y }}"
+                x2="{{ protein_ptm_map.axis.right }}"
+                y2="{{ protein_ptm_map.axis.axis_y }}"
+                class="protein-map-axis"
+            ></line>
+            <g class="protein-map-axis-labels">
+                <text x="{{ protein_ptm_map.axis.left }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle">1</text>
+                <text x="{{ protein_ptm_map.axis.middle_x }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle">{{ protein_ptm_map.axis.middle }}</text>
+                <text x="{{ protein_ptm_map.axis.right }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle">{{ protein_ptm_map.axis.end }}</text>
+            </g>
+        </svg>
+    </div>
+</div>
+{% endif %}

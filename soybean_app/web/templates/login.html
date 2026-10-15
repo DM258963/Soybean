@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ static_url(request, 'css/auth.css') }}?v=20260630a">
+{% endblock %}
+
+{% block content %}
+<section class="panel auth-panel">
+    <div class="panel-title-wrap">
+        <h2 class="panel-title">User Login</h2>
+        <p class="panel-subtitle">Sign in to access tester-only download features.</p>
+    </div>
+
+    {% if error %}
+    <div class="auth-message auth-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ route_url(request, 'login_post') }}" class="auth-form">
+        <input type="hidden" name="next" value="{{ next_url }}">
+
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username" required>
+
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+        <button type="submit" class="auth-primary-btn">Login</button>
+    </form>
+</section>
+{% endblock %}

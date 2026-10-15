@@ -1,0 +1,68 @@
+<header class="site-header">
+    <div class="brand-wrap">
+        <div class="brand-left">
+            <div class="brand-icon" aria-hidden="true"></div>
+            <div>
+                <h1 class="brand-title">Soybean Nodule PTM Viewer <span>V1.0</span></h1>
+                <p class="brand-subtitle">From site-seeing to protein function</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            {% if auth_enabled %}
+            <div class="auth-nav">
+                {% if current_user %}
+                    <span class="auth-nav-user">{{ current_user.username }}</span>
+                    {% if current_user.role == 'admin' %}
+                    <a href="{{ route_url(request, 'admin_users') }}">Users</a>
+                    {% endif %}
+                    <a href="{{ route_url(request, 'logout') }}">Logout</a>
+                {% else %}
+                    <a href="{{ route_url(request, 'login_page') }}">Login</a>
+                {% endif %}
+            </div>
+            {% endif %}
+            <button class="menu-toggle" id="menuToggle" aria-label="Toggle Menu">Menu</button>
+        </div>
+    </div>
+
+    <nav class="top-nav" id="topNav" aria-label="Main Navigation">
+        <ul class="nav-list">
+            {% for item in nav_items %}
+            {% set is_analysis = item.key == "analysis" %}
+            {% set is_data = item.key == "data" %}
+            {% set proteome_active = active.startswith("proteome") %}
+            {% set ptm_active = active.startswith("search") %}
+            {% set analysis_active = active.startswith("analysis") %}
+            {% set data_active = active.startswith("data") %}
+            {% set has_dropdown = is_analysis or is_data %}
+            {% set is_active = (item.key == "proteome" and proteome_active) or (item.key == "ptm" and ptm_active) or (is_analysis and analysis_active) or (is_data and data_active) or (not has_dropdown and active == item.key) %}
+            <li class="nav-item {% if is_active %}active{% endif %} {% if has_dropdown %}has-dropdown{% endif %}">
+                {% if has_dropdown %}
+                <button
+                    type="button"
+                    class="nav-parent-btn"
+                    aria-haspopup="true"
+                    aria-expanded="{% if (is_analysis and analysis_active) or (is_data and data_active) %}true{% else %}false{% endif %}"
+                >{{ item.label }}</button>
+                {% else %}
+                <a href="{{ item.endpoint }}">{{ item.label }}</a>
+                {% endif %}
+                {% if has_dropdown %}
+                <ul class="dropdown-menu">
+                    {% if is_analysis %}
+                        {% set child_menu = analysis_menu %}
+                    {% else %}
+                        {% set child_menu = data_menu %}
+                    {% endif %}
+                    {% for child in child_menu %}
+                    <li class="{% if active == child.key %}active{% endif %}">
+                        <a href="{{ child.endpoint }}">{{ child.label }}</a>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </nav>
+</header>
