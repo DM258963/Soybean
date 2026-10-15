@@ -37,3 +37,7 @@ blastdb_cache/
 Thumbs.db
 
 import_ready/*.csv
+
+# Local documentation and data-processing utilities
+操作手册/
+数据处理/
