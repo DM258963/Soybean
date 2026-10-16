@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20260704a">
+<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20261016i">
 {% endblock %}
 
 {% block content %}
@@ -58,33 +58,48 @@
                         >Download CSV</button>
                     </div>
                     {% endif %}
-                    <table class="site-table" data-sortable-table>
+                    <table class="site-table" data-sortable-table data-filterable-table>
                         <thead>
                             <tr>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="0" data-sort-type="number" aria-label="Sort by Position">
-                                        <span>Position</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="0" data-sort-type="number" aria-label="Sort by Position">
+                                            <span>Position</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="0" data-filter-label="Position" aria-label="Filter Position" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="1" data-sort-type="text" aria-label="Sort by Amino acid">
-                                        <span>Amino acid</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="1" data-sort-type="text" aria-label="Sort by Amino acid">
+                                            <span>Amino acid</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="1" data-filter-label="Amino acid" aria-label="Filter Amino acid" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="2" data-sort-type="text" aria-label="Sort by PTM types">
-                                        <span>PTM types</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="2" data-sort-type="text" aria-label="Sort by PTM types">
+                                            <span>PTM types</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="2" data-filter-label="PTM types" aria-label="Filter PTM types" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="3" data-sort-type="number" aria-label="Sort by W12/W4 ratio">
-                                        <span>W12/W4 ratio</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="3" data-sort-type="number" aria-label="Sort by W12/W4 ratio">
+                                            <span>W12/W4 ratio</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="3" data-filter-label="W12/W4 ratio" aria-label="Filter W12/W4 ratio" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="4" data-sort-type="text" aria-label="Sort by W12/W4 type">
-                                        <span>W12/W4 type</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="4" data-sort-type="text" aria-label="Sort by W12/W4 type">
+                                            <span>W12/W4 type</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="4" data-filter-label="W12/W4 type" aria-label="Filter W12/W4 type" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                             </tr>
                         </thead>
@@ -98,11 +113,11 @@
                                 role="button"
                                 aria-label="Show quantification chart for site {{ row['Position display'] }} {{ row['Amino acid display'] }} {{ row['PTM types'] }}"
                             >
-                                <td data-sort-value="{{ row['Position'] if row['Position'] is not none else '' }}">{{ row["Position display"] }}</td>
-                                <td>{{ row["Amino acid display"] }}</td>
-                                <td>{{ row["PTM types"] }}</td>
-                                <td data-sort-value="{{ row['W12/W4 ratio'] if row['W12/W4 ratio'] is not none else '' }}">{{ row["W12/W4 ratio"] if row["W12/W4 ratio"] is not none else "-" }}</td>
-                                <td>{{ row["W12/W4 Type"] or "-" }}</td>
+                                <td data-sort-value="{{ row['Position'] if row['Position'] is not none else '' }}" data-filter-value="{{ row['Position display'] }}">{{ row["Position display"] }}</td>
+                                <td data-filter-value="{{ row['Amino acid display'] }}">{{ row["Amino acid display"] }}</td>
+                                <td data-filter-value="{{ row['PTM types'] }}">{{ row["PTM types"] }}</td>
+                                <td data-sort-value="{{ row['W12/W4 ratio'] if row['W12/W4 ratio'] is not none else '' }}" data-filter-value="{{ '%.4f'|format(row['W12/W4 ratio']) if row['W12/W4 ratio'] is not none else '-' }}">{{ "%.4f"|format(row["W12/W4 ratio"]) if row["W12/W4 ratio"] is not none else "-" }}</td>
+                                <td data-filter-value="{{ row['W12/W4 Type'] or '-' }}">{{ row["W12/W4 Type"] or "-" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -206,5 +221,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20260629a"></script>
+<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20261016i"></script>
 {% endblock %}

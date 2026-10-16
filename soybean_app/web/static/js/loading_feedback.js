@@ -66,6 +66,23 @@
         }
     }
 
+    function resetLoadingState() {
+        window.clearTimeout(hideTimer);
+        document.querySelectorAll(".is-loading, [aria-busy='true'], [data-loading-original-text], [data-loading-active='true']").forEach((control) => {
+            setControlLoading(control, false);
+            delete control.dataset.loadingActive;
+        });
+
+        const node = document.querySelector("[data-loading-feedback]");
+        if (node) {
+            node.classList.remove("is-visible");
+            const text = node.querySelector(".loading-feedback__text");
+            if (text) {
+                text.textContent = "";
+            }
+        }
+    }
+
     function filenameFromDisposition(disposition, fallback) {
         const header = String(disposition || "");
         const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
@@ -101,6 +118,11 @@
                 const message = form.dataset.loadingMessage || DEFAULT_SEARCH_MESSAGE;
                 showFeedback(message);
                 setControlLoading(submitter, true, submitter && submitter.classList.contains("pager-btn") ? "" : "Searching...");
+                window.queueMicrotask(() => {
+                    if (event.defaultPrevented) {
+                        resetLoadingState();
+                    }
+                });
             });
         });
     }
@@ -166,4 +188,5 @@
 
     bindSearchForms();
     bindServerDownloads();
+    window.addEventListener("pageshow", resetLoadingState);
 })();

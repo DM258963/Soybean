@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20260704a">
+<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20261016i">
 {% endblock %}
 
 {% block content %}
@@ -10,6 +10,19 @@
         <h2 class="panel-title">Protein Expression Profiles</h2>
     </div>
 
+    {% set active_query = gene_query if search_tab == 'identifier' else sequence_query %}
+    {% set has_completed_search = active_query|trim %}
+    <div class="search-workspace" data-collapsible-search>
+        {% if has_completed_search %}
+        <div class="compact-search-bar">
+            <span class="compact-search-type">{% if search_tab == 'sequence' %}Sequence{% else %}Identifier{% endif %}</span>
+            <span class="compact-search-species">{{ selected_species_label }}</span>
+            <span class="compact-search-query" title="{{ active_query }}">{{ active_query|truncate(90, true, '…') }}</span>
+            <button type="button" class="compact-search-toggle" data-search-toggle aria-expanded="false" data-expand-label="Modify search" data-collapse-label="Hide search">Modify search</button>
+        </div>
+        {% endif %}
+
+        <div class="search-expanded" data-search-panel {% if has_completed_search %}hidden{% endif %}>
     <div class="search-tabs" aria-label="Proteome Search Type Tabs">
         <a
             class="tab-btn {% if search_tab == 'identifier' %}active{% endif %}"
@@ -109,6 +122,8 @@
             <button type="submit" class="search-btn">SEARCH</button>
         </form>
         {% endif %}
+    </div>
+        </div>
     </div>
 
     <div class="result-card">
@@ -244,5 +259,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20260612d"></script>
+<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20261016i"></script>
 {% endblock %}

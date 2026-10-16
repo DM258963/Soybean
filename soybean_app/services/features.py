@@ -201,6 +201,24 @@ def build_protein_ptm_map(
     gene = str(result_meta.get("gene_name", "")).strip()
     description = str(result_meta.get("protein_description", "")).strip()
     title_parts = [part for part in [accession or gene, description] if part]
+    legend_codes = order_ptm_codes(
+        {
+            code
+            for site in sites
+            for code in site.get("ptm_codes", [])
+            if code
+        }
+    )
+    legend_items = [
+        {
+            "code": code,
+            "label": get_ptm_style(code)["label"],
+            "bg": get_ptm_style(code)["bg"],
+        }
+        for code in legend_codes
+    ]
+    if any(len(site.get("ptm_codes", [])) > 1 for site in sites):
+        legend_items.append({"code": "__multiple__", "label": "Multiple PTM types", "bg": "#000000"})
     return {
         "available": bool(sites),
         "protein_title": ": ".join(title_parts) if title_parts else "Protein PTM Map",
@@ -209,6 +227,7 @@ def build_protein_ptm_map(
         "features": feature_blocks,
         "feature_lane_count": feature_lane_count,
         "sites": sites,
+        "legend_items": legend_items,
         "view_height": 238 + max(feature_lane_count - 1, 0) * 28,
         "axis": {
             "left": left,
@@ -1605,7 +1624,7 @@ def ensure_blast_database(species: str = DEFAULT_SPECIES) -> tuple[Path, dict[st
             "modification_type_count": str(candidate.get("modification_type_count", "0") or "0"),
             "total_sites": str(candidate.get("total_sites", "0") or "0"),
             "ptm_types": str(candidate.get("ptm_types", "")).strip(),
-            "select_key": gene_name or accession,
+            "select_key": accession or gene_name,
             "database_scope": BLAST_METADATA_SCOPE,
         }
         fasta_parts.append(f">{blast_id}\n{_wrap_fasta_sequence(sequence)}")
@@ -1747,7 +1766,7 @@ def build_blast_summary_rows(
                 "total_sites": total_sites,
                 "has_ptm": total_sites not in {"", "0"},
                 "ptm_types": str(candidate.get("ptm_types", "")).strip(),
-                "select_key": str(candidate.get("select_key", "")).strip(),
+                "select_key": accession or str(candidate.get("select_key", "")).strip() or gene_name,
                 "bit_score": bit_score_float,
                 "bit_score_display": f"{bit_score_float:.1f}",
                 "e_value": e_value_float,
@@ -2239,6 +2258,39 @@ SITE_DOWNLOAD_HEADERS = [
     "W12/W4 P value",
     "W12/W4 Type",
 ]
+
+DOWNLOAD_ALL_OVERVIEW_HEADERS = [
+    "Query ID",
+    "Description",
+    "Species",
+    "#PTMs",
+    "#PTM Types",
+    "Phytozome ID",
+    "UniProt ID",
+    "Status",
+]
+
+DOWNLOAD_ALL_SITE_HEADERS = SITE_DOWNLOAD_HEADERS[:8]
+
+DOWNLOAD_ALL_ABBREVIATION_ROWS = [
+    ["Canonical PTMs", "泛素化", "Ub", "Ubiquitylation(K)"],
+    ["Canonical PTMs", "乙酰化", "Ac", "Acetylation(K)"],
+    ["Canonical PTMs", "磷酸化", "ST", "Phosphorylation(S/T/Y)"],
+    ["Novel Acylations", "琥珀酰化", "Sc", "Succinylation(K)"],
+    ["Novel Acylations", "巴豆酰化", "Cr", "Crotonylation(K)"],
+    ["Novel Acylations", "3羟基丁酰化", "3o", "β-hydroxybutyrylation(K)"],
+    ["Novel Acylations", "全谱乳酰化（L)", "LLa", "L-lactylation(K)"],
+    ["Novel Acylations", "全谱乳酰化（D)", "DLa", "D-lactylation(K)"],
+    ["Glycosylation", "N-完整糖肽", "Ig", "N-glycopeptide(N)"],
+    ["Glycosylation", "完整O-GalNAc 糖肽", "IOg", "Intact O-GalNAc glycopeptide(S/T)"],
+    ["Glycosylation", "O-GlcNAc 单糖基化", "Og", "O-glycosylation(S/T)"],
+    ["redox PTMs", "亚硝基化", "Sn", "S-nitrosylation"],
+    ["redox PTMs", "次磺酸化", "Sl", "S-sulfenylation"],
+    ["redox PTMs", "谷胱甘肽化", "Sg", "S-glutathionylation"],
+    ["redox PTMs", "硫巯基化", "Ss", "S-sulfhydration"],
+]
+
+
 def _identifier_batch_text(value: Any) -> str:
     if isinstance(value, (list, tuple)):
         return "\n".join(str(item).strip() for item in value if str(item).strip())
@@ -2261,6 +2313,153 @@ def _protein_sites_batch_response(request: Request, identifiers: Any, species: s
     if not all_rows:
         raise HTTPException(status_code=404, detail="No PTM sites found")
     return _csv_response("protein-sites-batch.csv", SITE_DOWNLOAD_HEADERS, all_rows)
+
+
+def _xlsx_safe_value(value: Any) -> Any:
+    if not isinstance(value, str):
+        return value
+    if value.startswith(("=", "+", "@")) or (value.startswith("-") and len(value) > 1):
+        return "'" + value
+    return value
+
+
+def _append_download_all_sheet(
+    worksheet: Any,
+    headers: list[str],
+    rows: list[list[Any]],
+    widths: list[float],
+    table_name: str,
+) -> None:
+    from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+    from openpyxl.utils import get_column_letter
+    from openpyxl.worksheet.table import Table, TableStyleInfo
+
+    worksheet.append(headers)
+    for row in rows:
+        worksheet.append([_xlsx_safe_value(value) for value in row])
+
+    header_fill = PatternFill("solid", fgColor="4F772D")
+    header_font = Font(color="FFFFFF", bold=True)
+    border = Border(bottom=Side(style="thin", color="D6E1C8"))
+    for cell in worksheet[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = border
+
+    for row in worksheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    worksheet.freeze_panes = "A2"
+    worksheet.sheet_view.showGridLines = False
+    worksheet.row_dimensions[1].height = 26
+    for index, width in enumerate(widths, start=1):
+        worksheet.column_dimensions[get_column_letter(index)].width = width
+
+    end_column = get_column_letter(len(headers))
+    data_range = f"A1:{end_column}{max(1, worksheet.max_row)}"
+    worksheet.auto_filter.ref = data_range
+    if worksheet.max_row > 1:
+        table = Table(displayName=table_name, ref=data_range)
+        table.tableStyleInfo = TableStyleInfo(
+            name="TableStyleMedium4",
+            showFirstColumn=False,
+            showLastColumn=False,
+            showRowStripes=True,
+            showColumnStripes=False,
+        )
+        worksheet.add_table(table)
+
+
+def _download_all_workbook_bytes(overview_rows: list[dict[str, Any]], site_rows: list[list[Any]]) -> bytes:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    overview_export_rows = [
+        [
+            row.get("display_id") or row.get("query") or "-",
+            row.get("description") or row.get("protein_description") or "-",
+            row.get("organism") or "-",
+            int(row.get("total_sites") or 0),
+            int(row.get("modification_type_count") or 0),
+            row.get("plaza_gene_id") or "-",
+            row.get("uniprot_ids") or row.get("protein_accession") or "-",
+            row.get("status") or ("Matched" if row.get("has_result") else "No result"),
+        ]
+        for row in overview_rows
+    ]
+
+    workbook = Workbook()
+    overview_sheet = workbook.active
+    overview_sheet.title = "overview"
+    _append_download_all_sheet(
+        overview_sheet,
+        DOWNLOAD_ALL_OVERVIEW_HEADERS,
+        overview_export_rows,
+        [24, 70, 22, 12, 14, 24, 18, 22],
+        "OverviewTable",
+    )
+    overview_sheet.sheet_properties.tabColor = "4F772D"
+
+    sites_sheet = workbook.create_sheet("PTM sites")
+    _append_download_all_sheet(
+        sites_sheet,
+        DOWNLOAD_ALL_SITE_HEADERS,
+        [row[: len(DOWNLOAD_ALL_SITE_HEADERS)] for row in site_rows],
+        [24, 20, 22, 70, 12, 14, 14, 34],
+        "PtmSitesTable",
+    )
+    sites_sheet.sheet_properties.tabColor = "7BA05B"
+
+    abbreviation_sheet = workbook.create_sheet("Abbreviation")
+    _append_download_all_sheet(
+        abbreviation_sheet,
+        ["Category", "Chinese name", "Abbreviation", "English name"],
+        DOWNLOAD_ALL_ABBREVIATION_ROWS,
+        [22, 26, 16, 38],
+        "AbbreviationTable",
+    )
+    abbreviation_sheet.sheet_properties.tabColor = "E0A458"
+
+    output = BytesIO()
+    workbook.save(output)
+    return output.getvalue()
+
+
+def _protein_download_all_response(request: Request, identifiers: Any, species: str) -> Response:
+    _require_downloads_enabled(request)
+    selected_species = normalize_species_key(species)
+    tokens = split_identifier_query(_identifier_batch_text(identifiers))
+    if not tokens:
+        raise HTTPException(status_code=400, detail="Missing identifiers")
+    if len(tokens) > 1 and not current_user_can_search_multiple_identifiers(request):
+        raise HTTPException(status_code=403, detail=MULTI_IDENTIFIER_ADMIN_ONLY_MESSAGE)
+
+    overview_rows = build_protein_summary_rows(tokens, selected_species)
+    detail_identifiers: list[str] = []
+    emitted_identifiers: set[str] = set()
+    for row in overview_rows:
+        if not row.get("has_result"):
+            continue
+        identifier = str(row.get("select_key") or row.get("query") or "").strip()
+        identifier_key = identifier.casefold()
+        if identifier and identifier_key not in emitted_identifiers:
+            emitted_identifiers.add(identifier_key)
+            detail_identifiers.append(identifier)
+
+    site_rows: list[list[Any]] = []
+    for identifier in detail_identifiers:
+        rows, _ = build_site_download_rows(identifier, selected_species)
+        site_rows.extend(rows)
+
+    workbook_bytes = _download_all_workbook_bytes(overview_rows, site_rows)
+    return Response(
+        content=workbook_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="protein-download-all.xlsx"'},
+    )
 
 
 

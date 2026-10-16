@@ -1,29 +1,43 @@
 {% if protein_ptm_map and protein_ptm_map.available %}
-<div class="protein-map-panel">
+<div class="protein-map-panel" data-protein-map>
     <div class="protein-map-head">
         <div>
             <div class="protein-map-title">Protein PTM Map</div>
             <div class="protein-map-subtitle">{{ protein_ptm_map.protein_title }}</div>
         </div>
-        <div class="protein-map-stats">
-            <span>Length: {{ protein_ptm_map.length }}</span>
-            <span>PTM sites: {{ protein_ptm_map.site_count }}</span>
+        <div class="protein-map-head-actions">
+            <div class="protein-map-stats">
+                <span>Length: {{ protein_ptm_map.length }}</span>
+                <span>PTM sites: {{ protein_ptm_map.site_count }}</span>
+            </div>
+            <div class="protein-map-zoom-controls" aria-label="Protein map zoom controls">
+                <button type="button" data-map-zoom-out aria-label="Zoom out horizontally" title="Zoom out horizontally">−</button>
+                <output data-map-zoom-value aria-live="polite">100%</output>
+                <button type="button" data-map-zoom-in aria-label="Zoom in horizontally" title="Zoom in horizontally">+</button>
+                <button type="button" class="protein-map-fit-btn" data-map-zoom-fit title="Fit the complete protein to the available width">Fit</button>
+            </div>
         </div>
     </div>
-    <div class="protein-map-scroll">
+    <div class="protein-map-scroll" data-map-scroll>
         <svg
             class="protein-map-svg"
             viewBox="0 0 1000 {{ protein_ptm_map.view_height }}"
+            data-map-svg
+            data-map-view-width="1000"
+            data-map-view-height="{{ protein_ptm_map.view_height }}"
+            data-map-axis-left="{{ protein_ptm_map.axis.left }}"
+            data-map-axis-right="{{ protein_ptm_map.axis.right }}"
             role="img"
             aria-label="Protein PTM map for {{ protein_ptm_map.protein_title }}"
         >
-            <rect x="0" y="0" width="1000" height="{{ protein_ptm_map.view_height }}" class="protein-map-bg"></rect>
+            <rect x="0" y="0" width="1000" height="{{ protein_ptm_map.view_height }}" class="protein-map-bg" data-map-background></rect>
             <line
                 x1="{{ protein_ptm_map.axis.left }}"
                 y1="{{ protein_ptm_map.axis.track_y }}"
                 x2="{{ protein_ptm_map.axis.right }}"
                 y2="{{ protein_ptm_map.axis.track_y }}"
                 class="protein-map-backbone"
+                data-map-scale-x
             ></line>
             {% for feature in protein_ptm_map.features %}
             <g class="protein-map-feature">
@@ -35,6 +49,8 @@
                     height="18"
                     rx="2"
                     style="fill: {{ feature.fill }};"
+                    data-map-scale-x
+                    data-map-scale-width
                 ></rect>
                 {% if feature.show_label %}
                 <text
@@ -42,6 +58,7 @@
                     y="{{ feature.y + 13 }}"
                     text-anchor="middle"
                     class="protein-map-feature-label"
+                    data-map-scale-x
                 >{{ feature.label[:28] }}{% if feature.label|length > 28 %}...{% endif %}</text>
                 {% endif %}
             </g>
@@ -64,6 +81,7 @@
                     x2="{{ site.x }}"
                     y2="{{ site.line_y }}"
                     class="protein-map-site-line"
+                    data-map-scale-x
                 ></line>
                 <circle
                     cx="{{ site.x }}"
@@ -71,6 +89,7 @@
                     r="8"
                     class="protein-map-site-dot"
                     style="fill: {{ site.bg }};"
+                    data-map-scale-x
                 ></circle>
                 {% if site.show_label %}
                 <text
@@ -78,6 +97,7 @@
                     y="{{ site.y - 12 }}"
                     text-anchor="middle"
                     class="protein-map-site-label"
+                    data-map-scale-x
                 >{{ site.label }}</text>
                 {% endif %}
             </g>
@@ -88,13 +108,28 @@
                 x2="{{ protein_ptm_map.axis.right }}"
                 y2="{{ protein_ptm_map.axis.axis_y }}"
                 class="protein-map-axis"
+                data-map-scale-x
             ></line>
             <g class="protein-map-axis-labels">
-                <text x="{{ protein_ptm_map.axis.left }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle">1</text>
-                <text x="{{ protein_ptm_map.axis.middle_x }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle">{{ protein_ptm_map.axis.middle }}</text>
-                <text x="{{ protein_ptm_map.axis.right }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle">{{ protein_ptm_map.axis.end }}</text>
+                <text x="{{ protein_ptm_map.axis.left }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle" data-map-scale-x>1</text>
+                <text x="{{ protein_ptm_map.axis.middle_x }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle" data-map-scale-x>{{ protein_ptm_map.axis.middle }}</text>
+                <text x="{{ protein_ptm_map.axis.right }}" y="{{ protein_ptm_map.axis.label_y }}" text-anchor="middle" data-map-scale-x>{{ protein_ptm_map.axis.end }}</text>
             </g>
         </svg>
     </div>
+    {% if protein_ptm_map.legend_items %}
+    <div class="protein-map-legend" aria-label="PTM color legend">
+        <div class="protein-map-legend-title">PTM color key</div>
+        <div class="protein-map-legend-items">
+            {% for item in protein_ptm_map.legend_items %}
+            <div class="protein-map-legend-item">
+                <span class="protein-map-legend-swatch" style="background: {{ item.bg }};" aria-hidden="true"></span>
+                <strong>{% if item.code == '__multiple__' %}Multi{% else %}{{ item.code }}{% endif %}</strong>
+                <span>{{ item.label }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endif %}

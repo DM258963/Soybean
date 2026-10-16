@@ -118,3 +118,25 @@ async def download_protein_sites_batch_post(
         str(payload.get("species", DEFAULT_SPECIES) or DEFAULT_SPECIES),
     )
 
+
+@router.get("/downloads/protein-download-all.xlsx")
+async def download_protein_all(
+    request: Request,
+    identifiers: str = Query(default="", alias="identifiers"),
+    species: str = Query(default=DEFAULT_SPECIES, alias="species"),
+) -> Response:
+    return _protein_download_all_response(request, identifiers, species)
+
+
+@router.post("/downloads/protein-download-all.xlsx")
+async def download_protein_all_post(
+    request: Request,
+    payload: dict[str, Any] | None = Body(default=None),
+) -> Response:
+    payload = payload or {}
+    return _protein_download_all_response(
+        request,
+        payload.get("identifiers", ""),
+        str(payload.get("species", DEFAULT_SPECIES) or DEFAULT_SPECIES),
+    )
+

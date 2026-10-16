@@ -12,6 +12,12 @@ body {
     font-family: "Source Sans 3", "Segoe UI", Tahoma, sans-serif;
 }
 
+@media (min-width: 901px) {
+    body {
+        zoom: 0.75;
+    }
+}
+
 a {
     color: inherit;
     text-decoration: none;

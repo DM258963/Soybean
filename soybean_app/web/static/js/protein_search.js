@@ -124,7 +124,7 @@
     }
 
     function tableToCsv(table) {
-        const rows = Array.from(table.querySelectorAll("tr"));
+        const rows = Array.from(table.querySelectorAll("tr")).filter((row) => !row.hidden && row.dataset.exportSkip !== "true");
         const pendingRowspans = [];
         return rows.map((row) => {
             const values = [];
@@ -143,7 +143,7 @@
                     colIndex += 1;
                 }
                 const exportCell = cell.cloneNode(true);
-                exportCell.querySelectorAll(".sort-icon").forEach((node) => node.remove());
+                exportCell.querySelectorAll(".sort-icon, .column-filter-btn, .column-filter-menu").forEach((node) => node.remove());
                 const text = exportCell.textContent.replace(/\s+/g, " ").trim();
                 values.push(text);
                 const rowspan = Number(cell.getAttribute("rowspan") || "1");
@@ -194,6 +194,27 @@
 
             buttons.forEach((button) => {
                 button.addEventListener("click", () => setValue(button.value));
+            });
+        });
+    }
+
+    function bindCollapsibleSearch() {
+        document.querySelectorAll("[data-collapsible-search]").forEach((workspace) => {
+            const toggle = workspace.querySelector("[data-search-toggle]");
+            const panel = workspace.querySelector("[data-search-panel]");
+            if (!(toggle instanceof HTMLButtonElement) || !(panel instanceof HTMLElement)) return;
+
+            toggle.addEventListener("click", () => {
+                const willExpand = panel.hidden;
+                panel.hidden = !willExpand;
+                toggle.setAttribute("aria-expanded", willExpand ? "true" : "false");
+                toggle.textContent = willExpand
+                    ? (toggle.dataset.collapseLabel || "Hide search")
+                    : (toggle.dataset.expandLabel || "Modify search");
+                if (willExpand) {
+                    const field = panel.querySelector("textarea, input:not([type='hidden'])");
+                    if (field instanceof HTMLElement) field.focus();
+                }
             });
         });
     }
@@ -275,6 +296,256 @@
         });
     }
 
+    function bindTableFilters() {
+        let menuId = 0;
+
+        document.querySelectorAll("table[data-filterable-table]").forEach((table) => {
+            const tbody = table.querySelector("tbody");
+            if (!tbody) return;
+
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const filterButtons = Array.from(table.querySelectorAll("[data-column-filter][data-filter-index]"));
+            const activeFilters = new Map();
+            const menus = [];
+            const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
+            const emptyRow = document.createElement("tr");
+            emptyRow.className = "table-filter-empty";
+            emptyRow.dataset.exportSkip = "true";
+            emptyRow.hidden = true;
+            const emptyCell = document.createElement("td");
+            emptyCell.colSpan = table.querySelectorAll("thead th").length || 1;
+            emptyCell.textContent = "No sites match the selected filters.";
+            emptyRow.appendChild(emptyCell);
+            tbody.appendChild(emptyRow);
+
+            const status = document.createElement("div");
+            status.className = "table-filter-status";
+            status.hidden = true;
+            status.setAttribute("aria-live", "polite");
+
+            const statusText = document.createElement("span");
+            const clearFiltersButton = document.createElement("button");
+            clearFiltersButton.type = "button";
+            clearFiltersButton.textContent = "Clear filters";
+            status.append(statusText, clearFiltersButton);
+            table.before(status);
+
+            function getCellValue(row, index) {
+                const cell = row.children[index];
+                if (!cell) return "";
+                return String(cell.dataset.filterValue ?? cell.textContent ?? "").trim();
+            }
+
+            function updateButtonStates() {
+                filterButtons.forEach((button) => {
+                    const index = Number(button.dataset.filterIndex || "-1");
+                    const isActive = activeFilters.has(index);
+                    button.classList.toggle("is-active", isActive);
+                    button.setAttribute("aria-label", `${isActive ? "Change" : "Filter"} ${button.dataset.filterLabel || "column"}${isActive ? " (filter active)" : ""}`);
+                });
+            }
+
+            function applyFilters() {
+                let visibleCount = 0;
+                rows.forEach((row) => {
+                    const isVisible = Array.from(activeFilters.entries()).every(([index, selectedValues]) => (
+                        selectedValues.has(getCellValue(row, index))
+                    ));
+                    row.hidden = !isVisible;
+                    if (isVisible) visibleCount += 1;
+                });
+
+                updateButtonStates();
+                status.hidden = activeFilters.size === 0;
+                statusText.textContent = `Showing ${visibleCount} of ${rows.length} sites · ${activeFilters.size} active ${activeFilters.size === 1 ? "filter" : "filters"}`;
+                emptyRow.hidden = visibleCount !== 0;
+            }
+
+            function pageZoom() {
+                const zoom = Number.parseFloat(getComputedStyle(document.body).zoom || "1");
+                return Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
+            }
+
+            function positionMenu(button, menu) {
+                const zoom = pageZoom();
+                const buttonRect = button.getBoundingClientRect();
+                const menuRect = menu.getBoundingClientRect();
+                const viewportWidth = document.documentElement.clientWidth;
+                const viewportHeight = document.documentElement.clientHeight;
+                const margin = 8;
+                const gap = 6;
+
+                let left = buttonRect.right - menuRect.width;
+                left = Math.max(margin, Math.min(left, viewportWidth - menuRect.width - margin));
+
+                let top = buttonRect.bottom + gap;
+                if (top + menuRect.height > viewportHeight - margin && buttonRect.top - menuRect.height - gap >= margin) {
+                    top = buttonRect.top - menuRect.height - gap;
+                }
+
+                menu.style.left = `${left / zoom}px`;
+                menu.style.top = `${top / zoom}px`;
+            }
+
+            function closeMenus(exceptMenu = null) {
+                menus.forEach(({ button, menu }) => {
+                    if (menu === exceptMenu) return;
+                    menu.hidden = true;
+                    button.setAttribute("aria-expanded", "false");
+                    button.closest("th")?.classList.remove("is-filter-open");
+                });
+            }
+
+            filterButtons.forEach((button) => {
+                const index = Number(button.dataset.filterIndex || "-1");
+                if (!Number.isInteger(index) || index < 0) return;
+
+                const values = Array.from(new Set(rows.map((row) => getCellValue(row, index)))).sort(collator.compare);
+                const th = button.closest("th");
+                if (!th) return;
+
+                menuId += 1;
+                const menu = document.createElement("div");
+                menu.id = `column-filter-menu-${menuId}`;
+                menu.className = "column-filter-menu";
+                menu.hidden = true;
+                menu.setAttribute("role", "dialog");
+                menu.setAttribute("aria-label", `Filter ${button.dataset.filterLabel || "column"}`);
+                button.setAttribute("aria-controls", menu.id);
+
+                const title = document.createElement("div");
+                title.className = "column-filter-title";
+                title.textContent = `Filter ${button.dataset.filterLabel || "column"}`;
+
+                const search = document.createElement("input");
+                search.type = "search";
+                search.className = "column-filter-search";
+                search.placeholder = "Search values";
+                search.setAttribute("aria-label", `Search ${button.dataset.filterLabel || "column"} values`);
+
+                const bulkActions = document.createElement("div");
+                bulkActions.className = "column-filter-bulk-actions";
+                const selectAllButton = document.createElement("button");
+                selectAllButton.type = "button";
+                selectAllButton.textContent = "Select all";
+                const clearButton = document.createElement("button");
+                clearButton.type = "button";
+                clearButton.textContent = "Clear";
+                bulkActions.append(selectAllButton, clearButton);
+
+                const optionList = document.createElement("div");
+                optionList.className = "column-filter-options";
+                const optionEntries = values.map((value) => {
+                    const label = document.createElement("label");
+                    label.className = "column-filter-option";
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.value = value;
+                    const text = document.createElement("span");
+                    text.textContent = value || "(Blank)";
+                    label.append(checkbox, text);
+                    optionList.appendChild(label);
+                    return { value, label, checkbox };
+                });
+
+                const footer = document.createElement("div");
+                footer.className = "column-filter-footer";
+                const cancelButton = document.createElement("button");
+                cancelButton.type = "button";
+                cancelButton.className = "column-filter-cancel";
+                cancelButton.textContent = "Cancel";
+                const applyButton = document.createElement("button");
+                applyButton.type = "button";
+                applyButton.className = "column-filter-apply";
+                applyButton.textContent = "Apply";
+                footer.append(cancelButton, applyButton);
+
+                menu.append(title, search, bulkActions, optionList, footer);
+                document.body.appendChild(menu);
+                menus.push({ button, menu });
+
+                function syncMenuSelection() {
+                    const selectedValues = activeFilters.get(index);
+                    optionEntries.forEach(({ value, label, checkbox }) => {
+                        checkbox.checked = selectedValues ? selectedValues.has(value) : true;
+                        label.hidden = false;
+                    });
+                    search.value = "";
+                }
+
+                function visibleEntries() {
+                    return optionEntries.filter(({ label }) => !label.hidden);
+                }
+
+                button.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    const willOpen = menu.hidden;
+                    closeMenus(willOpen ? menu : null);
+                    if (willOpen) {
+                        syncMenuSelection();
+                        menu.hidden = false;
+                        positionMenu(button, menu);
+                        button.setAttribute("aria-expanded", "true");
+                        th.classList.add("is-filter-open");
+                        search.focus();
+                    } else {
+                        menu.hidden = true;
+                        button.setAttribute("aria-expanded", "false");
+                        th.classList.remove("is-filter-open");
+                    }
+                });
+
+                menu.addEventListener("click", (event) => event.stopPropagation());
+
+                search.addEventListener("input", () => {
+                    const query = search.value.trim().toLocaleLowerCase();
+                    optionEntries.forEach(({ value, label }) => {
+                        label.hidden = Boolean(query) && !value.toLocaleLowerCase().includes(query);
+                    });
+                });
+
+                selectAllButton.addEventListener("click", () => {
+                    visibleEntries().forEach(({ checkbox }) => {
+                        checkbox.checked = true;
+                    });
+                });
+
+                clearButton.addEventListener("click", () => {
+                    visibleEntries().forEach(({ checkbox }) => {
+                        checkbox.checked = false;
+                    });
+                });
+
+                cancelButton.addEventListener("click", () => closeMenus());
+
+                applyButton.addEventListener("click", () => {
+                    const selectedValues = new Set(
+                        optionEntries.filter(({ checkbox }) => checkbox.checked).map(({ value }) => value),
+                    );
+                    if (selectedValues.size === values.length) activeFilters.delete(index);
+                    else activeFilters.set(index, selectedValues);
+                    applyFilters();
+                    closeMenus();
+                });
+            });
+
+            clearFiltersButton.addEventListener("click", () => {
+                activeFilters.clear();
+                applyFilters();
+                closeMenus();
+            });
+
+            document.addEventListener("click", () => closeMenus());
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") closeMenus();
+            });
+            window.addEventListener("resize", () => closeMenus());
+            window.addEventListener("scroll", () => closeMenus(), { passive: true });
+            table.closest(".site-table-wrap")?.addEventListener("scroll", () => closeMenus(), { passive: true });
+        });
+    }
+
     function bindIdentifierExamples() {
         const speciesField = document.getElementById("species_identifier");
         const input = document.getElementById("gene_name");
@@ -306,10 +577,109 @@
         updateExamples();
     }
 
+    function bindProteinMapZoom() {
+        const zoomLevels = [1, 1.5, 2, 2.5, 3, 4];
+
+        document.querySelectorAll("[data-protein-map]").forEach((panel) => {
+            const scroll = panel.querySelector("[data-map-scroll]");
+            const svg = panel.querySelector("[data-map-svg]");
+            const zoomOutButton = panel.querySelector("[data-map-zoom-out]");
+            const zoomInButton = panel.querySelector("[data-map-zoom-in]");
+            const fitButton = panel.querySelector("[data-map-zoom-fit]");
+            const zoomValue = panel.querySelector("[data-map-zoom-value]");
+            const background = svg?.querySelector("[data-map-background]");
+            if (!(scroll instanceof HTMLElement) || !(svg instanceof SVGElement)) return;
+
+            const originalViewWidth = Number(svg.dataset.mapViewWidth || "1000");
+            const viewHeight = Number(svg.dataset.mapViewHeight || "0");
+            const axisLeft = Number(svg.dataset.mapAxisLeft || "0");
+            const axisRight = Number(svg.dataset.mapAxisRight || String(originalViewWidth));
+            if (!Number.isFinite(originalViewWidth) || originalViewWidth <= 0 || !Number.isFinite(viewHeight) || viewHeight <= 0) return;
+
+            const axisWidth = Math.max(axisRight - axisLeft, 0);
+            const rightMargin = Math.max(originalViewWidth - axisRight, 0);
+            const scalableElements = Array.from(svg.querySelectorAll("[data-map-scale-x]")).map((element) => {
+                const attributes = ["x", "x1", "x2", "cx"]
+                    .filter((name) => element.hasAttribute(name))
+                    .map((name) => ({ name, value: Number(element.getAttribute(name)) }));
+                return { element, attributes };
+            });
+            const scalableWidths = Array.from(svg.querySelectorAll("[data-map-scale-width]")).map((element) => ({
+                element,
+                width: Number(element.getAttribute("width")),
+            }));
+            let zoomIndex = 0;
+            let resizeFrame = 0;
+
+            function scaledX(value, zoom) {
+                return axisLeft + ((value - axisLeft) * zoom);
+            }
+
+            function applyZoom(nextIndex, preserveCenter = true) {
+                const oldSvgWidth = Math.max(svg.clientWidth, 1);
+                const viewportCenterRatio = (scroll.scrollLeft + (scroll.clientWidth / 2)) / oldSvgWidth;
+                zoomIndex = Math.max(0, Math.min(nextIndex, zoomLevels.length - 1));
+                const zoom = zoomLevels[zoomIndex];
+                const expandedViewWidth = axisLeft + (axisWidth * zoom) + rightMargin;
+
+                scalableElements.forEach(({ element, attributes }) => {
+                    attributes.forEach(({ name, value }) => {
+                        if (Number.isFinite(value)) element.setAttribute(name, scaledX(value, zoom).toFixed(2));
+                    });
+                });
+                scalableWidths.forEach(({ element, width }) => {
+                    if (Number.isFinite(width)) element.setAttribute("width", (width * zoom).toFixed(2));
+                });
+
+                if (background instanceof SVGElement) {
+                    background.setAttribute("width", expandedViewWidth.toFixed(2));
+                }
+                svg.setAttribute("viewBox", `0 0 ${expandedViewWidth.toFixed(2)} ${viewHeight}`);
+
+                const fitWidth = Math.max(scroll.clientWidth, 1);
+                svg.style.width = `${fitWidth * (expandedViewWidth / originalViewWidth)}px`;
+                svg.style.height = `${fitWidth * (viewHeight / originalViewWidth)}px`;
+                panel.classList.toggle("is-map-zoomed", zoomIndex > 0);
+
+                if (zoomValue instanceof HTMLOutputElement) zoomValue.value = `${Math.round(zoom * 100)}%`;
+                if (zoomOutButton instanceof HTMLButtonElement) zoomOutButton.disabled = zoomIndex === 0;
+                if (zoomInButton instanceof HTMLButtonElement) zoomInButton.disabled = zoomIndex === zoomLevels.length - 1;
+
+                window.requestAnimationFrame(() => {
+                    if (zoomIndex === 0) {
+                        scroll.scrollLeft = 0;
+                    } else if (preserveCenter) {
+                        const newSvgWidth = Math.max(svg.clientWidth, 1);
+                        scroll.scrollLeft = Math.max(0, (viewportCenterRatio * newSvgWidth) - (scroll.clientWidth / 2));
+                    }
+                });
+            }
+
+            if (zoomOutButton instanceof HTMLButtonElement) {
+                zoomOutButton.addEventListener("click", () => applyZoom(zoomIndex - 1));
+            }
+            if (zoomInButton instanceof HTMLButtonElement) {
+                zoomInButton.addEventListener("click", () => applyZoom(zoomIndex + 1));
+            }
+            if (fitButton instanceof HTMLButtonElement) {
+                fitButton.addEventListener("click", () => applyZoom(0, false));
+            }
+
+            applyZoom(0, false);
+            window.addEventListener("resize", () => {
+                window.cancelAnimationFrame(resizeFrame);
+                resizeFrame = window.requestAnimationFrame(() => applyZoom(zoomIndex));
+            });
+        });
+    }
+
     bindSegmentedControls();
+    bindCollapsibleSearch();
     bindIdentifierExamples();
     bindTableDownloads();
     bindSortableTables();
+    bindTableFilters();
+    bindProteinMapZoom();
 
     function syncSiteTableHeight() {
         const side = document.querySelector(".result-side");

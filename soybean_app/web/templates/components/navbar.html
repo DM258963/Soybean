@@ -3,41 +3,91 @@
         <div class="brand-left">
             <div class="brand-icon" aria-hidden="true"></div>
             <div>
-                <h1 class="brand-title">Soybean Nodule PTM Viewer <span>V1.0</span></h1>
-                <p class="brand-subtitle">From site-seeing to protein function</p>
+                <h1 class="brand-title">SN-PTM Viewer <span>V1.0</span></h1>
+                <p class="brand-subtitle">Soybean Nodule Post-Translational Modification Viewer</p>
             </div>
         </div>
         <div class="header-actions">
             {% if auth_enabled %}
             <div class="auth-nav">
                 {% if current_user %}
-                    <span class="auth-account-chip" title="Signed in as {{ current_user.username }}">
-                        <span class="auth-account-avatar" aria-hidden="true">{{ current_user.username[0]|upper }}</span>
-                        <span class="auth-account-copy">
-                            <small>Signed in as</small>
-                            <strong>{{ current_user.username }}</strong>
-                        </span>
-                    </span>
-                    {% if current_user.role == 'admin' %}
-                    <a class="auth-nav-link auth-nav-users {% if active == 'auth-users' %}is-active{% endif %}" href="{{ route_url(request, 'admin_users') }}" {% if active == 'auth-users' %}aria-current="page"{% endif %}>
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-                            <circle cx="9" cy="7" r="4"></circle>
-                            <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        </svg>
-                        <span>Users</span>
-                    </a>
-                    {% endif %}
-                    <form class="auth-nav-form" method="post" action="{{ route_url(request, 'logout') }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button class="auth-nav-link auth-nav-logout" type="submit">
-                            <svg viewBox="0 0 24 24" aria-hidden="true">
-                                <path d="M10 17l5-5-5-5M15 12H3"></path>
-                                <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+                    <div class="auth-account-menu" data-account-menu>
+                        <button
+                            class="auth-account-chip {% if active == 'auth-users' %}is-active{% endif %}"
+                            type="button"
+                            title="Open account menu for {{ current_user.username }}"
+                            aria-haspopup="menu"
+                            aria-expanded="false"
+                            data-account-menu-toggle
+                        >
+                            <span class="auth-account-avatar" aria-hidden="true">{{ current_user.username[0]|upper }}</span>
+                            <span class="auth-account-copy">
+                                <small>Signed in as</small>
+                                <strong>{{ current_user.username }}</strong>
+                            </span>
+                            <svg class="auth-account-chevron" viewBox="0 0 20 20" aria-hidden="true">
+                                <path d="m6 8 4 4 4-4"></path>
                             </svg>
-                            <span>Logout</span>
                         </button>
-                    </form>
+
+                        <div class="auth-account-dropdown" role="menu" data-account-menu-panel hidden>
+                            <div class="auth-menu-profile">
+                                <span class="auth-menu-avatar" aria-hidden="true">{{ current_user.username[0]|upper }}</span>
+                                <span class="auth-menu-identity">
+                                    <strong>{{ current_user.username }}</strong>
+                                    <span class="auth-role-badge {% if current_user.role == 'admin' %}is-admin{% endif %}">
+                                        {% if current_user.role == 'admin' %}Administrator{% else %}User{% endif %}
+                                    </span>
+                                </span>
+                            </div>
+
+                            <div class="auth-menu-capabilities" aria-label="Account permissions">
+                                <div>
+                                    <span>Search access</span>
+                                    <strong>{% if current_user.role == 'admin' %}Multiple IDs{% else %}One ID per search{% endif %}</strong>
+                                </div>
+                                <div>
+                                    <span>Downloads</span>
+                                    <strong class="{% if downloads_enabled %}is-enabled{% else %}is-disabled{% endif %}">{% if downloads_enabled %}Enabled{% else %}Disabled{% endif %}</strong>
+                                </div>
+                            </div>
+
+                            <div class="auth-menu-actions">
+                                {% if current_user.role == 'admin' %}
+                                <a class="auth-menu-action {% if active == 'auth-users' %}is-active{% endif %}" role="menuitem" href="{{ route_url(request, 'admin_users') }}" {% if active == 'auth-users' %}aria-current="page"{% endif %}>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                    <span>
+                                        <strong>User management</strong>
+                                        <small>Create accounts and manage permissions</small>
+                                    </span>
+                                </a>
+                                {% else %}
+                                <div class="auth-menu-user-note">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"></path>
+                                        <path d="m9 12 2 2 4-4"></path>
+                                    </svg>
+                                    <span>Your account uses standard user permissions.</span>
+                                </div>
+                                {% endif %}
+
+                                <form class="auth-menu-form" method="post" action="{{ route_url(request, 'logout') }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button class="auth-menu-action auth-menu-logout" role="menuitem" type="submit">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M10 17l5-5-5-5M15 12H3"></path>
+                                            <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+                                        </svg>
+                                        <span><strong>Sign out</strong><small>End this session safely</small></span>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
                 {% else %}
                     <a class="auth-nav-link auth-nav-login" href="{{ route_url(request, 'login_page') }}">Login</a>
                 {% endif %}

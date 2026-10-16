@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20260704a">
+<link rel="stylesheet" href="{{ static_url(request, 'css/protein_search.css') }}?v=20261016i">
 {% endblock %}
 
 {% block content %}
@@ -10,6 +10,19 @@
         <h2 class="panel-title">Protein Search</h2>
     </div>
 
+    {% set active_query = gene_query if search_tab == 'identifier' else sequence_query %}
+    {% set has_completed_search = active_query|trim %}
+    <div class="search-workspace" data-collapsible-search>
+        {% if has_completed_search %}
+        <div class="compact-search-bar">
+            <span class="compact-search-type">{% if search_tab == 'sequence' %}Sequence{% else %}Identifier{% endif %}</span>
+            <span class="compact-search-species">{{ selected_species_label }}</span>
+            <span class="compact-search-query" title="{{ active_query }}">{{ active_query|truncate(90, true, '…') }}</span>
+            <button type="button" class="compact-search-toggle" data-search-toggle aria-expanded="false" data-expand-label="Modify search" data-collapse-label="Hide search">Modify search</button>
+        </div>
+        {% endif %}
+
+        <div class="search-expanded" data-search-panel {% if has_completed_search %}hidden{% endif %}>
     <div class="search-tabs" aria-label="Search Type Tabs">
         <a
             class="tab-btn {% if search_tab == 'identifier' %}active{% endif %}"
@@ -122,6 +135,8 @@
             <button type="submit" class="search-btn">SEARCH</button>
         </form>
         {% endif %}
+    </div>
+        </div>
     </div>
 
     <div class="result-card">
@@ -289,22 +304,16 @@
         <div class="table-actions">
             <a
                 class="export-btn"
-                href="{{ route_url(request, 'download_protein_sites_batch') }}?species={{ selected_species|urlencode }}&identifiers={{ batch_download_identifiers|urlencode }}"
+                href="{{ route_url(request, 'download_protein_all') }}?species={{ selected_species|urlencode }}&identifiers={{ gene_query|urlencode }}"
                 data-server-download
                 data-download-method="post"
-                data-download-url="{{ route_url(request, 'download_protein_sites_batch') }}"
-                data-download-identifiers="{{ batch_download_identifiers }}"
+                data-download-url="{{ route_url(request, 'download_protein_all') }}"
+                data-download-identifiers="{{ gene_query }}"
                 data-download-species="{{ selected_species }}"
-                data-download-filename="protein-sites-batch.csv"
-                data-loading-message="Preparing all matched PTM site details. Large downloads may take a few minutes..."
+                data-download-filename="protein-download-all.xlsx"
+                data-loading-message="Preparing overview, PTM sites, and abbreviation sheets. Large downloads may take a few minutes..."
                 data-loading-label="Preparing..."
-            >Download All Details</a>
-            <button
-                type="button"
-                class="export-btn"
-                data-download-table=".batch-summary-table"
-                data-download-filename="protein-batch-overview.csv"
-            >Download Overview</button>
+            >Download All</a>
         </div>
         {% endif %}
         <div class="match-table-wrap">
@@ -425,33 +434,48 @@
                         >Download CSV</button>
                     </div>
                     {% endif %}
-                    <table class="site-table" data-sortable-table>
+                    <table class="site-table" data-sortable-table data-filterable-table>
                         <thead>
                             <tr>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="0" data-sort-type="number" aria-label="Sort by Position">
-                                        <span>Position</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="0" data-sort-type="number" aria-label="Sort by Position">
+                                            <span>Position</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="0" data-filter-label="Position" aria-label="Filter Position" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="1" data-sort-type="text" aria-label="Sort by Amino acid">
-                                        <span>Amino acid</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="1" data-sort-type="text" aria-label="Sort by Amino acid">
+                                            <span>Amino acid</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="1" data-filter-label="Amino acid" aria-label="Filter Amino acid" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="2" data-sort-type="text" aria-label="Sort by PTM types">
-                                        <span>PTM types</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="2" data-sort-type="text" aria-label="Sort by PTM types">
+                                            <span>PTM types</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="2" data-filter-label="PTM types" aria-label="Filter PTM types" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="3" data-sort-type="number" aria-label="Sort by W12/W4 ratio">
-                                        <span>W12/W4 ratio</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="3" data-sort-type="number" aria-label="Sort by W12/W4 ratio">
+                                            <span>W12/W4 ratio</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="3" data-filter-label="W12/W4 ratio" aria-label="Filter W12/W4 ratio" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                                 <th>
-                                    <button type="button" class="sort-header" data-sort-index="4" data-sort-type="text" aria-label="Sort by W12/W4 type">
-                                        <span>W12/W4 type</span><span class="sort-icon" aria-hidden="true">↕</span>
-                                    </button>
+                                    <div class="table-header-tools">
+                                        <button type="button" class="sort-header" data-sort-index="4" data-sort-type="text" aria-label="Sort by W12/W4 type">
+                                            <span>W12/W4 type</span><span class="sort-icon" aria-hidden="true">↕</span>
+                                        </button>
+                                        <button type="button" class="column-filter-btn" data-column-filter data-filter-index="4" data-filter-label="W12/W4 type" aria-label="Filter W12/W4 type" aria-expanded="false"><span aria-hidden="true">▾</span></button>
+                                    </div>
                                 </th>
                             </tr>
                         </thead>
@@ -465,11 +489,11 @@
                                 role="button"
                                 aria-label="Show quantification chart for site {{ row['Position display'] }} {{ row['Amino acid display'] }} {{ row['PTM types'] }}"
                             >
-                                <td data-sort-value="{{ row['Position'] if row['Position'] is not none else '' }}">{{ row["Position display"] }}</td>
-                                <td>{{ row["Amino acid display"] }}</td>
-                                <td>{{ row["PTM types"] }}</td>
-                                <td data-sort-value="{{ row['W12/W4 ratio'] if row['W12/W4 ratio'] is not none else '' }}">{{ row["W12/W4 ratio"] if row["W12/W4 ratio"] is not none else "-" }}</td>
-                                <td>{{ row["W12/W4 Type"] or "-" }}</td>
+                                <td data-sort-value="{{ row['Position'] if row['Position'] is not none else '' }}" data-filter-value="{{ row['Position display'] }}">{{ row["Position display"] }}</td>
+                                <td data-filter-value="{{ row['Amino acid display'] }}">{{ row["Amino acid display"] }}</td>
+                                <td data-filter-value="{{ row['PTM types'] }}">{{ row["PTM types"] }}</td>
+                                <td data-sort-value="{{ row['W12/W4 ratio'] if row['W12/W4 ratio'] is not none else '' }}" data-filter-value="{{ '%.4f'|format(row['W12/W4 ratio']) if row['W12/W4 ratio'] is not none else '-' }}">{{ "%.4f"|format(row["W12/W4 ratio"]) if row["W12/W4 ratio"] is not none else "-" }}</td>
+                                <td data-filter-value="{{ row['W12/W4 Type'] or '-' }}">{{ row["W12/W4 Type"] or "-" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -574,5 +598,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20260702a"></script>
+<script src="{{ static_url(request, 'js/protein_search.js') }}?v=20261016i"></script>
 {% endblock %}

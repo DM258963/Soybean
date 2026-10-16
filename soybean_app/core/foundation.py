@@ -837,7 +837,13 @@ def keep_primary_target_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]
 
 
 def split_identifier_query(raw_value: str) -> list[str]:
-    tokens = re.split(r"[,;\s]+", raw_value.strip())
+    normalized_value = re.sub(
+        r"\b(glyma[._])\s+(?=\d{1,2}g\d+)",
+        r"\1",
+        raw_value.strip(),
+        flags=re.IGNORECASE,
+    )
+    tokens = re.split(r"[,;\s]+", normalized_value)
     output: list[str] = []
     seen: set[str] = set()
     for token in tokens:
@@ -967,7 +973,7 @@ def build_protein_overview_row(query: str, rows: list[dict[str, str]]) -> dict[s
         "modification_type_count": len(ptm_counts),
         "total_sites": valid_site_count,
         "ptm_summary": ptm_summary,
-        "select_key": gene_name or accession or transcript_id or query,
+        "select_key": accession or transcript_id or gene_name or query,
         "status": "Matched" if valid_site_count else "Matched, no valid PTM site",
         "has_result": valid_site_count > 0,
     }
@@ -993,7 +999,7 @@ def build_identifier_match_rows(rows: list[dict[str, str]], query: str) -> list[
                 for token in collect_identifier_tokens(gene_name, accession, transcript_id, gene_names)
             }
             is_exact = bool(query_tokens & row_tokens)
-            select_key = gene_name if gene_name else accession
+            select_key = accession or transcript_id or gene_name
             bucket = {
                 "gene_name": gene_name,
                 "protein_accession": accession,

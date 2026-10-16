@@ -211,7 +211,6 @@ async def search_protein(
     can_search_multiple_ids = current_user_can_search_multiple_identifiers(request)
     identifier_limit_exceeded = len(identifier_tokens) > 1 and not can_search_multiple_ids
     batch_summary_rows: list[dict[str, Any]] = []
-    batch_download_identifiers = ""
     show_batch_summary_table = False
     sequence_blast_rows: list[dict[str, Any]] = []
     sequence_blast_summary = {
@@ -232,11 +231,6 @@ async def search_protein(
                 tokens_for_overview = identifier_tokens if identifier_tokens else [gene_query]
                 batch_summary_rows = build_protein_summary_rows(tokens_for_overview, selected_species)
                 show_batch_summary_table = True
-                batch_download_identifiers = "\n".join(
-                    str(row.get("select_key", "")).strip()
-                    for row in batch_summary_rows
-                    if row.get("has_result") and str(row.get("select_key", "")).strip()
-                )
                 matched_count = sum(1 for row in batch_summary_rows if row.get("has_result"))
                 if matched_count:
                     message = (
@@ -255,9 +249,7 @@ async def search_protein(
                 message = f'No result found for "{gene_query}" in {selected_species_label}. Please try another Gene name.'
             else:
                 identifier_match_rows = build_identifier_match_rows(matched_rows, gene_query)
-                has_exact = any(bool(item.get("is_exact")) for item in identifier_match_rows)
-
-                if not has_exact and len(identifier_match_rows) > 1:
+                if len(identifier_match_rows) > 1:
                     show_identifier_match_table = True
                     message = (
                         f'Found {len(identifier_match_rows)} matches for "{gene_query}". '
@@ -354,7 +346,6 @@ async def search_protein(
             "identifier_tokens": identifier_tokens,
             "can_search_multiple_ids": can_search_multiple_ids,
             "batch_summary_rows": batch_summary_rows,
-            "batch_download_identifiers": batch_download_identifiers,
             "show_batch_summary_table": show_batch_summary_table,
             "sequence_blast_rows": sequence_blast_rows,
             "sequence_blast_summary": sequence_blast_summary,
