@@ -949,6 +949,10 @@ def _safe_download_name(value: str, fallback: str = "protein") -> str:
 
 AUTH_ROLE_ADMIN = "admin"
 AUTH_ROLE_TESTER = "tester"
+MULTI_IDENTIFIER_ADMIN_ONLY_MESSAGE = (
+    "Multiple-ID search is available to administrator accounts only. "
+    "Please submit one identifier per search."
+)
 _AUTH_TABLE_READY = False
 _AUTH_TABLE_LOCK = threading.Lock()
 
@@ -964,7 +968,7 @@ def _base64_urlsafe_decode(value: str) -> bytes:
 
 def _password_hash(password: str) -> str:
     salt = secrets.token_bytes(16)
-    iterations = 260000
+    iterations = PTM_AUTH_PBKDF2_ITERATIONS
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
     return f"pbkdf2_sha256${iterations}${_base64_urlsafe(salt)}${_base64_urlsafe(digest)}"
 
@@ -984,16 +988,51 @@ def _verify_password(password: str, stored_hash: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
+_DUMMY_PASSWORD_HASH = _password_hash(secrets.token_urlsafe(32))
+
+
+def verify_login_password(password: str, user: dict[str, Any] | None) -> bool:
+    stored_hash = str(user.get("password_hash", "")) if user else _DUMMY_PASSWORD_HASH
+    matches = _verify_password(password, stored_hash)
+    return bool(user and matches)
+
+
+def _password_validation_error(password: str) -> str:
+    if len(password) < PTM_AUTH_PASSWORD_MIN_LENGTH:
+        return f"Password must be at least {PTM_AUTH_PASSWORD_MIN_LENGTH} characters."
+    if len(password) > PTM_AUTH_PASSWORD_MAX_LENGTH:
+        return f"Password must be no more than {PTM_AUTH_PASSWORD_MAX_LENGTH} characters."
+    return ""
+
+
+def upgrade_password_hash_if_needed(user_id: int, password: str, stored_hash: str) -> None:
+    try:
+        algorithm, iterations_raw, _, _ = stored_hash.split("$", 3)
+        needs_upgrade = algorithm != "pbkdf2_sha256" or int(iterations_raw) < PTM_AUTH_PBKDF2_ITERATIONS
+    except Exception:
+        needs_upgrade = True
+    if not needs_upgrade:
+        return
+    run_psql_csv_query(
+        f"""
+        UPDATE ptm.app_user
+        SET password_hash = {pg_quote(_password_hash(password))},
+            updated_at = NOW()
+        WHERE user_id = {int(user_id)};
+        """
+    )
+
+
 def _db_bool(value: Any) -> bool:
     return str(value or "").strip().lower() in {"1", "t", "true", "yes", "y", "on"}
 
 
 def _normalize_username(value: str) -> str:
-    return str(value or "").strip().lower()
+    return str(value or "").strip()
 
 
 def _valid_username(username: str) -> bool:
-    return bool(re.fullmatch(r"[a-z0-9_.@-]{3,64}", username))
+    return bool(re.fullmatch(r"[A-Za-z0-9_.@-]{3,64}", username))
 
 
 def _valid_role(role: str) -> str:
@@ -1021,6 +1060,7 @@ def ensure_auth_tables() -> None:
               is_active BOOLEAN NOT NULL DEFAULT TRUE,
               failed_login_count INT NOT NULL DEFAULT 0,
               locked_until TIMESTAMPTZ,
+              session_version BIGINT NOT NULL DEFAULT 1,
               last_login_at TIMESTAMPTZ,
               created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
               updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -1029,6 +1069,25 @@ def ensure_auth_tables() -> None:
         )
         run_psql_csv_query("ALTER TABLE ptm.app_user ADD COLUMN IF NOT EXISTS failed_login_count INT NOT NULL DEFAULT 0;")
         run_psql_csv_query("ALTER TABLE ptm.app_user ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;")
+        run_psql_csv_query("ALTER TABLE ptm.app_user ADD COLUMN IF NOT EXISTS session_version BIGINT NOT NULL DEFAULT 1;")
+        run_psql_csv_query("CREATE UNIQUE INDEX IF NOT EXISTS app_user_username_ci_unique ON ptm.app_user (LOWER(username));")
+        run_psql_csv_query(
+            """
+            CREATE TABLE IF NOT EXISTS ptm.auth_audit_log (
+              audit_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+              event_type TEXT NOT NULL,
+              success BOOLEAN NOT NULL,
+              actor_user_id BIGINT,
+              target_user_id BIGINT,
+              username TEXT,
+              client_ip TEXT,
+              user_agent TEXT,
+              detail TEXT,
+              created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );
+            """
+        )
+        run_psql_csv_query("CREATE INDEX IF NOT EXISTS auth_audit_log_created_at_idx ON ptm.auth_audit_log (created_at DESC);")
         _AUTH_TABLE_READY = True
 
 
@@ -1040,6 +1099,7 @@ def _auth_user_from_row(row: dict[str, Any], include_password: bool = False) -> 
         "can_download": _db_bool(row.get("can_download")),
         "is_active": _db_bool(row.get("is_active")),
         "failed_login_count": int(row.get("failed_login_count", "0") or 0),
+        "session_version": int(row.get("session_version", "1") or 1),
         "locked_until": str(row.get("locked_until", "") or ""),
         "is_locked": _db_bool(row.get("is_locked")),
         "last_login_at": str(row.get("last_login_at", "") or ""),
@@ -1050,7 +1110,12 @@ def _auth_user_from_row(row: dict[str, Any], include_password: bool = False) -> 
     return user
 
 
-def get_app_user_by_username(username: str, include_password: bool = False) -> dict[str, Any] | None:
+def _find_app_user_by_username(
+    username: str,
+    *,
+    include_password: bool = False,
+    case_sensitive: bool = True,
+) -> dict[str, Any] | None:
     if not PTM_AUTH_ENABLED:
         return None
     ensure_auth_tables()
@@ -1059,6 +1124,11 @@ def get_app_user_by_username(username: str, include_password: bool = False) -> d
         return None
 
     password_select = ", password_hash" if include_password else ""
+    username_match = (
+        f"username = {pg_quote(clean_username)}"
+        if case_sensitive
+        else f"LOWER(username) = LOWER({pg_quote(clean_username)})"
+    )
     rows = run_psql_csv_query(
         f"""
         SELECT
@@ -1069,15 +1139,25 @@ def get_app_user_by_username(username: str, include_password: bool = False) -> d
           is_active,
           failed_login_count,
           locked_until,
+          session_version,
           (locked_until IS NOT NULL AND locked_until > NOW()) AS is_locked,
           last_login_at,
           created_at{password_select}
         FROM ptm.app_user
-        WHERE username = {pg_quote(clean_username)}
+        WHERE {username_match}
+        ORDER BY CASE WHEN username = {pg_quote(clean_username)} THEN 0 ELSE 1 END, user_id
         LIMIT 1;
         """
     )
     return _auth_user_from_row(rows[0], include_password=include_password) if rows else None
+
+
+def get_app_user_by_username(username: str, include_password: bool = False) -> dict[str, Any] | None:
+    return _find_app_user_by_username(
+        username,
+        include_password=include_password,
+        case_sensitive=True,
+    )
 
 
 def get_app_user_by_id(user_id: int) -> dict[str, Any] | None:
@@ -1094,6 +1174,7 @@ def get_app_user_by_id(user_id: int) -> dict[str, Any] | None:
           is_active,
           failed_login_count,
           locked_until,
+          session_version,
           (locked_until IS NOT NULL AND locked_until > NOW()) AS is_locked,
           last_login_at,
           created_at
@@ -1117,6 +1198,7 @@ def list_app_users() -> list[dict[str, Any]]:
           is_active,
           failed_login_count,
           locked_until,
+          session_version,
           (locked_until IS NOT NULL AND locked_until > NOW()) AS is_locked,
           last_login_at,
           created_at
@@ -1132,9 +1214,10 @@ def create_app_user(username: str, password: str, role: str, can_download: bool)
     clean_username = _normalize_username(username)
     if not _valid_username(clean_username):
         return False, "Username must be 3-64 characters: letters, numbers, dot, underscore, hyphen, or @."
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters."
-    if get_app_user_by_username(clean_username):
+    password_error = _password_validation_error(password)
+    if password_error:
+        return False, password_error
+    if _find_app_user_by_username(clean_username, case_sensitive=False):
         return False, "Username already exists."
 
     clean_role = _valid_role(role)
@@ -1220,9 +1303,13 @@ def update_app_user(
 
     password_sql = ""
     if new_password:
-        if len(new_password) < 8:
-            return False, "New password must be at least 8 characters."
-        password_sql = f", password_hash = {pg_quote(_password_hash(new_password))}"
+        password_error = _password_validation_error(new_password)
+        if password_error:
+            return False, password_error.replace("Password", "New password", 1)
+        password_sql = (
+            f", password_hash = {pg_quote(_password_hash(new_password))}"
+            ", session_version = session_version + 1"
+        )
 
     run_psql_csv_query(
         f"""
@@ -1257,12 +1344,56 @@ def delete_app_user(target_user_id: int, acting_user_id: int) -> tuple[bool, str
     return True, f"User {target['username']} deleted."
 
 
+def revoke_user_sessions(user_id: int) -> None:
+    run_psql_csv_query(
+        f"""
+        UPDATE ptm.app_user
+        SET session_version = session_version + 1,
+            updated_at = NOW()
+        WHERE user_id = {int(user_id)};
+        """
+    )
+
+
+def record_auth_audit_event(
+    event_type: str,
+    success: bool,
+    *,
+    actor_user_id: int | None = None,
+    target_user_id: int | None = None,
+    username: str = "",
+    client_ip: str = "",
+    user_agent: str = "",
+    detail: str = "",
+) -> None:
+    ensure_auth_tables()
+    actor_sql = str(int(actor_user_id)) if actor_user_id else "NULL"
+    target_sql = str(int(target_user_id)) if target_user_id else "NULL"
+    run_psql_csv_query(
+        f"""
+        INSERT INTO ptm.auth_audit_log (
+          event_type, success, actor_user_id, target_user_id,
+          username, client_ip, user_agent, detail
+        ) VALUES (
+          {pg_quote(str(event_type)[:64])},
+          {'TRUE' if success else 'FALSE'},
+          {actor_sql},
+          {target_sql},
+          {pg_quote(str(username)[:128])},
+          {pg_quote(str(client_ip)[:128])},
+          {pg_quote(str(user_agent)[:512])},
+          {pg_quote(str(detail)[:512])}
+        );
+        """
+    )
+
+
 def ensure_bootstrap_admin() -> None:
     if not PTM_AUTH_ENABLED or not PTM_BOOTSTRAP_ADMIN_USERNAME or not PTM_BOOTSTRAP_ADMIN_PASSWORD:
         return
     ensure_auth_tables()
     username = _normalize_username(PTM_BOOTSTRAP_ADMIN_USERNAME)
-    if not _valid_username(username) or get_app_user_by_username(username):
+    if not _valid_username(username) or _find_app_user_by_username(username, case_sensitive=False):
         return
     create_app_user(username, PTM_BOOTSTRAP_ADMIN_PASSWORD, AUTH_ROLE_ADMIN, True)
 
@@ -1271,13 +1402,50 @@ def _session_signature(payload: str) -> str:
     return hmac.new(PTM_AUTH_SECRET_KEY.encode("utf-8"), payload.encode("ascii"), hashlib.sha256).hexdigest()
 
 
-def create_session_token(user_id: int) -> str:
+def _csrf_signature(payload: str) -> str:
+    message = f"csrf:{payload}"
+    return hmac.new(PTM_AUTH_SECRET_KEY.encode("utf-8"), message.encode("ascii"), hashlib.sha256).hexdigest()
+
+
+def create_csrf_token(user_id: int = 0) -> str:
+    payload = _base64_urlsafe(
+        json.dumps(
+            {
+                "user_id": max(0, int(user_id)),
+                "exp": int(time.time()) + (2 * 60 * 60),
+                "nonce": secrets.token_urlsafe(18),
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    return f"{payload}.{_csrf_signature(payload)}"
+
+
+def verify_csrf_token(token: str, user_id: int = 0) -> bool:
+    try:
+        payload, signature = str(token or "").split(".", 1)
+        if not hmac.compare_digest(signature, _csrf_signature(payload)):
+            return False
+        data = json.loads(_base64_urlsafe_decode(payload).decode("utf-8"))
+        if int(data.get("exp", 0)) < int(time.time()):
+            return False
+        return int(data.get("user_id", -1)) == max(0, int(user_id))
+    except Exception:
+        return False
+
+
+def create_session_token(user_id: int, session_version: int) -> str:
     expires_at = int(time.time()) + (PTM_AUTH_SESSION_DAYS * 24 * 60 * 60)
-    payload = _base64_urlsafe(json.dumps({"user_id": int(user_id), "exp": expires_at}, separators=(",", ":")).encode("utf-8"))
+    payload = _base64_urlsafe(
+        json.dumps(
+            {"user_id": int(user_id), "version": int(session_version), "exp": expires_at},
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
     return f"{payload}.{_session_signature(payload)}"
 
 
-def parse_session_token(token: str) -> int | None:
+def parse_session_token(token: str) -> tuple[int, int] | None:
     try:
         payload, signature = token.split(".", 1)
         if not hmac.compare_digest(signature, _session_signature(payload)):
@@ -1285,7 +1453,11 @@ def parse_session_token(token: str) -> int | None:
         data = json.loads(_base64_urlsafe_decode(payload).decode("utf-8"))
         if int(data.get("exp", 0)) < int(time.time()):
             return None
-        return int(data.get("user_id", 0))
+        user_id = int(data.get("user_id", 0))
+        session_version = int(data.get("version", 0))
+        if user_id <= 0 or session_version <= 0:
+            return None
+        return user_id, session_version
     except Exception:
         return None
 
@@ -1298,15 +1470,27 @@ def get_current_user(request: Request) -> dict[str, Any] | None:
         return cached if cached else None
 
     token = request.cookies.get(PTM_AUTH_COOKIE_NAME, "")
-    user_id = parse_session_token(token) if token else None
+    session = parse_session_token(token) if token else None
     try:
-        user = get_app_user_by_id(user_id) if user_id else None
+        user = get_app_user_by_id(session[0]) if session else None
     except Exception:
         user = None
-    if user and not user.get("is_active"):
+    if user and (
+        not user.get("is_active")
+        or not session
+        or int(user.get("session_version", 0)) != session[1]
+    ):
         user = None
     request.state.current_user = user or {}
     return user
+
+
+def user_can_search_multiple_identifiers(user: dict[str, Any] | None) -> bool:
+    return bool(user and user.get("is_active") and user.get("role") == AUTH_ROLE_ADMIN)
+
+
+def current_user_can_search_multiple_identifiers(request: Request) -> bool:
+    return user_can_search_multiple_identifiers(get_current_user(request))
 
 
 def current_user_can_download(request: Request) -> bool:
@@ -2067,6 +2251,8 @@ def _protein_sites_batch_response(request: Request, identifiers: Any, species: s
     tokens = split_identifier_query(_identifier_batch_text(identifiers))
     if not tokens:
         raise HTTPException(status_code=400, detail="Missing identifiers")
+    if len(tokens) > 1 and not current_user_can_search_multiple_identifiers(request):
+        raise HTTPException(status_code=403, detail=MULTI_IDENTIFIER_ADMIN_ONLY_MESSAGE)
 
     all_rows: list[list[Any]] = []
     for token in tokens:

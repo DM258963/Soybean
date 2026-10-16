@@ -152,7 +152,7 @@
                 <span class="pager-total">of {{ page_meta.total_pages }}</span>
 
                 <label class="page-size-label" for="page_size">Results per page</label>
-                <select id="page_size" name="page_size" class="page-size-select" onchange="this.form.submit()">
+                <select id="page_size" name="page_size" class="page-size-select" data-auto-submit>
                     {% for option in page_size_options %}
                     <option value="{{ option }}" {% if option == page_meta.page_size %}selected{% endif %}>{{ option }}</option>
                     {% endfor %}

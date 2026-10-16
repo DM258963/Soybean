@@ -29,3 +29,11 @@ dropdownParents.forEach((item) => {
         trigger.setAttribute("aria-expanded", item.classList.contains("open") ? "true" : "false");
     });
 });
+
+document.querySelectorAll("[data-auto-submit]").forEach((field) => {
+    field.addEventListener("change", () => {
+        if (field.form) {
+            field.form.submit();
+        }
+    });
+});

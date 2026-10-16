@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ static_url(request, 'css/auth.css') }}?v=20260630a">
+<link rel="stylesheet" href="{{ static_url(request, 'css/auth.css') }}?v=20261016b">
 {% endblock %}
 
 {% block content %}
@@ -16,13 +16,15 @@
     {% endif %}
 
     <form method="post" action="{{ route_url(request, 'login_post') }}" class="auth-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <input type="hidden" name="next" value="{{ next_url }}">
 
         <label for="username">Username</label>
-        <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username" required>
+        <input id="username" name="username" type="text" value="{{ username }}" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <p class="auth-field-hint">Usernames are case-sensitive.</p>
 
         <label for="password">Password</label>
-        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <input id="password" name="password" type="password" autocomplete="current-password" maxlength="{{ password_max_length }}" required>
 
         <button type="submit" class="auth-primary-btn">Login</button>
     </form>

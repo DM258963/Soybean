@@ -97,32 +97,129 @@
 .auth-nav {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     flex-wrap: wrap;
     justify-content: flex-end;
-    font-size: 0.96rem;
+    font-size: 0.9rem;
 }
 
-.auth-nav a,
-.auth-nav-user {
+.auth-nav-form {
+    display: inline-flex;
+    margin: 0;
+}
+
+.auth-account-chip,
+.auth-nav-link {
     display: inline-flex;
     align-items: center;
-    min-height: 30px;
-    padding: 3px 9px;
-    border: 1px solid rgba(255, 255, 255, 0.28);
+    min-height: 40px;
+    border-radius: 12px;
+}
+
+.auth-account-chip {
+    gap: 9px;
+    max-width: 190px;
+    padding: 5px 12px 5px 6px;
+    border: 1px solid rgba(244, 208, 126, 0.48);
+    background: rgba(31, 62, 18, 0.34);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.auth-account-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 29px;
+    height: 29px;
+    border: 1px solid rgba(255, 235, 178, 0.6);
+    border-radius: 9px;
+    background: linear-gradient(145deg, #f4d77c, #d7ab43);
+    color: #38531f;
+    font-size: 0.82rem;
+    font-weight: 800;
+    box-shadow: 0 3px 8px rgba(26, 52, 14, 0.2);
+}
+
+.auth-account-copy {
+    display: grid;
+    min-width: 0;
+    line-height: 1.05;
+}
+
+.auth-account-copy small {
+    color: rgba(241, 247, 233, 0.68);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.035em;
+}
+
+.auth-account-copy strong {
+    overflow: hidden;
+    margin-top: 3px;
+    color: #fff1bf;
+    font-size: 0.9rem;
+    font-weight: 750;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.auth-nav-link {
+    gap: 7px;
+    padding: 7px 11px;
+    border: 1px solid rgba(255, 255, 255, 0.24);
     background: rgba(255, 255, 255, 0.08);
     color: #f7f9f2;
-}
-
-.auth-nav a:hover,
-.auth-nav a:focus {
-    background: rgba(255, 255, 255, 0.16);
-}
-
-.auth-nav-user {
-    border-color: rgba(221, 161, 94, 0.75);
-    color: #f4dfad;
     font-weight: 700;
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+    cursor: pointer;
+    transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.auth-nav-link svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
+
+.auth-nav-link:hover,
+.auth-nav-link:focus-visible,
+.auth-nav-link.is-active {
+    border-color: rgba(255, 255, 255, 0.42);
+    background: rgba(255, 255, 255, 0.17);
+    box-shadow: 0 5px 13px rgba(24, 49, 13, 0.18);
+    transform: translateY(-1px);
+}
+
+.auth-nav-users.is-active {
+    border-color: rgba(244, 208, 126, 0.7);
+    background: rgba(244, 208, 126, 0.16);
+    color: #fff0bc;
+}
+
+.auth-nav-logout {
+    border-color: rgba(255, 255, 255, 0.14);
+    background: transparent;
+    color: rgba(247, 249, 242, 0.86);
+}
+
+.auth-nav-logout:hover,
+.auth-nav-logout:focus-visible {
+    border-color: rgba(255, 210, 194, 0.38);
+    background: rgba(132, 45, 28, 0.18);
+    color: #ffe7de;
+}
+
+.auth-nav-login {
+    border-color: rgba(244, 208, 126, 0.62);
+    background: rgba(244, 208, 126, 0.14);
+    color: #fff0bc;
 }
 
 .top-nav {
@@ -281,7 +378,15 @@
     }
 
     .auth-nav {
-        max-width: 210px;
+        max-width: 270px;
+    }
+
+    .auth-account-copy small {
+        display: none;
+    }
+
+    .auth-account-copy strong {
+        margin-top: 0;
     }
 
     .top-nav {

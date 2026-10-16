@@ -87,9 +87,13 @@ async def hermes_schema() -> dict[str, Any]:
 
 
 @router.post("/api/hermes/query")
-async def hermes_query(payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:
+async def hermes_query(request: Request, payload: dict[str, Any] = Body(default_factory=dict)) -> dict[str, Any]:
     _require_hermes_assistant_enabled()
     try:
+        payload = {
+            **payload,
+            "_allow_multiple_identifiers": current_user_can_search_multiple_identifiers(request),
+        }
         user_message = _hermes_payload_text(payload, "message", "query", "text", "identifier", "gene_name", "expression", "sequence")
         result = _hermes_query_payload(payload)
         result["routed_tool"] = result.get("tool")

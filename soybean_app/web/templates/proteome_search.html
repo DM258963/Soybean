@@ -97,7 +97,14 @@
                     {% if selected_species == 'bradyrhizobium_diazoefficiens' %}Example: H7C6D6 or hupA{% else %}Example: I1J4B5 or GLYMA_15G065100{% endif %}
                 </div>
             </div>
-            <small>Search by Protein accession, Gene name, Transcript ID, Gene Names, Phytozome/Glyma ID, or protein description. Multiple IDs can be separated by comma, semicolon, space, or new line.</small>
+            <small>
+                Search by Protein accession, Gene name, Transcript ID, Gene Names, Phytozome/Glyma ID, or protein description.
+                {% if can_search_multiple_ids %}
+                Multiple IDs can be separated by comma, semicolon, space, or new line.
+                {% else %}
+                One identifier is allowed per search. Multiple-ID search requires an administrator account.
+                {% endif %}
+            </small>
 
             <button type="submit" class="search-btn">SEARCH</button>
         </form>

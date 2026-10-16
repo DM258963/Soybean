@@ -11,13 +11,35 @@
             {% if auth_enabled %}
             <div class="auth-nav">
                 {% if current_user %}
-                    <span class="auth-nav-user">{{ current_user.username }}</span>
+                    <span class="auth-account-chip" title="Signed in as {{ current_user.username }}">
+                        <span class="auth-account-avatar" aria-hidden="true">{{ current_user.username[0]|upper }}</span>
+                        <span class="auth-account-copy">
+                            <small>Signed in as</small>
+                            <strong>{{ current_user.username }}</strong>
+                        </span>
+                    </span>
                     {% if current_user.role == 'admin' %}
-                    <a href="{{ route_url(request, 'admin_users') }}">Users</a>
+                    <a class="auth-nav-link auth-nav-users {% if active == 'auth-users' %}is-active{% endif %}" href="{{ route_url(request, 'admin_users') }}" {% if active == 'auth-users' %}aria-current="page"{% endif %}>
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <span>Users</span>
+                    </a>
                     {% endif %}
-                    <a href="{{ route_url(request, 'logout') }}">Logout</a>
+                    <form class="auth-nav-form" method="post" action="{{ route_url(request, 'logout') }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button class="auth-nav-link auth-nav-logout" type="submit">
+                            <svg viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M10 17l5-5-5-5M15 12H3"></path>
+                                <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"></path>
+                            </svg>
+                            <span>Logout</span>
+                        </button>
+                    </form>
                 {% else %}
-                    <a href="{{ route_url(request, 'login_page') }}">Login</a>
+                    <a class="auth-nav-link auth-nav-login" href="{{ route_url(request, 'login_page') }}">Login</a>
                 {% endif %}
             </div>
             {% endif %}

@@ -110,7 +110,14 @@
                     {% if selected_species == 'bradyrhizobium_diazoefficiens' %}Example: rpoC or Q89J75{% else %}Example: GLYMA_10G142500{% endif %}
                 </div>
             </div>
-            <small>Search by Protein accession, Gene name, Transcript ID, or Gene Names. Multiple IDs can be separated by comma, semicolon, space, or new line.</small>
+            <small>
+                Search by Protein accession, Gene name, Transcript ID, or Gene Names.
+                {% if can_search_multiple_ids %}
+                Multiple IDs can be separated by comma, semicolon, space, or new line.
+                {% else %}
+                One identifier is allowed per search. Multiple-ID search requires an administrator account.
+                {% endif %}
+            </small>
 
             <button type="submit" class="search-btn">SEARCH</button>
         </form>

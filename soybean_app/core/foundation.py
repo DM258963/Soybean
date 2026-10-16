@@ -186,14 +186,26 @@ UNIPROT_CA_FILE = os.getenv("PTM_UNIPROT_CA_FILE", "").strip()
 PTM_DOWNLOADS_ENABLED = _env_bool("PTM_DOWNLOADS_ENABLED", False)
 DOWNLOADS_DISABLED_MESSAGE = "Downloads and raw data preview are temporarily unavailable before publication."
 PTM_AUTH_ENABLED = _env_bool("PTM_AUTH_ENABLED", True)
-PTM_AUTH_SECRET_KEY = os.getenv("PTM_AUTH_SECRET_KEY", DB_CONFIG["password"] or "soybean-ptm-local-auth-secret")
+PTM_AUTH_SECRET_KEY = os.getenv("PTM_AUTH_SECRET_KEY", "").strip()
 PTM_AUTH_COOKIE_NAME = os.getenv("PTM_AUTH_COOKIE_NAME", "soybean_ptm_session")
-PTM_AUTH_SESSION_DAYS = max(1, int(os.getenv("PTM_AUTH_SESSION_DAYS", "30")))
+PTM_AUTH_SESSION_DAYS = max(1, int(os.getenv("PTM_AUTH_SESSION_DAYS", "7")))
 PTM_AUTH_COOKIE_SECURE = _env_bool("PTM_AUTH_COOKIE_SECURE", False)
 PTM_AUTH_MAX_FAILED_ATTEMPTS = max(1, int(os.getenv("PTM_AUTH_MAX_FAILED_ATTEMPTS", "5")))
 PTM_AUTH_LOCKOUT_MINUTES = max(1, int(os.getenv("PTM_AUTH_LOCKOUT_MINUTES", "30")))
+PTM_AUTH_IP_MAX_FAILED_ATTEMPTS = max(1, int(os.getenv("PTM_AUTH_IP_MAX_FAILED_ATTEMPTS", "20")))
+PTM_AUTH_IP_WINDOW_MINUTES = max(1, int(os.getenv("PTM_AUTH_IP_WINDOW_MINUTES", "15")))
+PTM_AUTH_PASSWORD_MIN_LENGTH = max(10, int(os.getenv("PTM_AUTH_PASSWORD_MIN_LENGTH", "10")))
+PTM_AUTH_PASSWORD_MAX_LENGTH = max(PTM_AUTH_PASSWORD_MIN_LENGTH, int(os.getenv("PTM_AUTH_PASSWORD_MAX_LENGTH", "256")))
+PTM_AUTH_PBKDF2_ITERATIONS = max(260000, int(os.getenv("PTM_AUTH_PBKDF2_ITERATIONS", "600000")))
 PTM_BOOTSTRAP_ADMIN_USERNAME = os.getenv("PTM_BOOTSTRAP_ADMIN_USERNAME", "admin").strip()
 PTM_BOOTSTRAP_ADMIN_PASSWORD = os.getenv("PTM_BOOTSTRAP_ADMIN_PASSWORD", "").strip()
+
+
+def validate_auth_security_config() -> None:
+    if not PTM_AUTH_ENABLED:
+        return
+    if len(PTM_AUTH_SECRET_KEY) < 32 or PTM_AUTH_SECRET_KEY == "replace-with-a-long-random-secret":
+        raise RuntimeError("PTM_AUTH_SECRET_KEY must be a unique random value of at least 32 characters.")
 
 
 PTM_STYLE = {

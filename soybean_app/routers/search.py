@@ -46,6 +46,9 @@ async def proteome_search(
     gene_query = gene_name.strip()
     sequence_query = sequence.strip()
     normalized_sequence_query = normalize_sequence_input(sequence_query)
+    can_search_multiple_ids = current_user_can_search_multiple_identifiers(request)
+    identifier_tokens = split_identifier_query(gene_query) if search_tab == "identifier" else []
+    identifier_limit_exceeded = len(identifier_tokens) > 1 and not can_search_multiple_ids
     proteome_rows: list[dict[str, Any]] = []
     sequence_blast_summary = {
         "candidate_count": 0,
@@ -55,9 +58,9 @@ async def proteome_search(
         "e_value_max": selected_e_value_max,
         "query_cover_min": selected_query_cover_min,
     }
-    message = ""
+    message = MULTI_IDENTIFIER_ADMIN_ONLY_MESSAGE if identifier_limit_exceeded else ""
 
-    if search_tab == "identifier" and gene_query:
+    if search_tab == "identifier" and gene_query and not identifier_limit_exceeded:
         try:
             proteome_rows = search_expression_records(gene_query, selected_species)
             if proteome_rows:
@@ -109,6 +112,7 @@ async def proteome_search(
             "selected_species": selected_species,
             "selected_species_label": selected_species_label,
             "gene_query": gene_query,
+            "can_search_multiple_ids": can_search_multiple_ids,
             "sequence_query": sequence_query,
             "proteome_rows": proteome_rows,
             "expression_timepoints": EXPRESSION_TIMEPOINTS,
@@ -204,6 +208,8 @@ async def search_protein(
     identifier_match_rows: list[dict[str, Any]] = []
     show_identifier_match_table = False
     identifier_tokens = split_identifier_query(gene_query) if search_tab == "identifier" else []
+    can_search_multiple_ids = current_user_can_search_multiple_identifiers(request)
+    identifier_limit_exceeded = len(identifier_tokens) > 1 and not can_search_multiple_ids
     batch_summary_rows: list[dict[str, Any]] = []
     batch_download_identifiers = ""
     show_batch_summary_table = False
@@ -217,7 +223,10 @@ async def search_protein(
         "query_cover_min": selected_query_cover_min,
     }
 
-    if search_tab == "identifier" and gene_query:
+    if identifier_limit_exceeded:
+        message = MULTI_IDENTIFIER_ADMIN_ONLY_MESSAGE
+
+    if search_tab == "identifier" and gene_query and not identifier_limit_exceeded:
         try:
             if result_view != "detail":
                 tokens_for_overview = identifier_tokens if identifier_tokens else [gene_query]
@@ -343,6 +352,7 @@ async def search_protein(
             "identifier_match_rows": identifier_match_rows,
             "show_identifier_match_table": show_identifier_match_table,
             "identifier_tokens": identifier_tokens,
+            "can_search_multiple_ids": can_search_multiple_ids,
             "batch_summary_rows": batch_summary_rows,
             "batch_download_identifiers": batch_download_identifiers,
             "show_batch_summary_table": show_batch_summary_table,

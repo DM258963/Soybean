@@ -38,7 +38,7 @@
             <span>of {{ page_meta.total_pages }}</span>
 
             <label for="page_size">Rows per page</label>
-            <select id="page_size" name="page_size" onchange="this.form.submit()">
+            <select id="page_size" name="page_size" data-auto-submit>
                 {% for option in page_size_options %}
                 <option value="{{ option }}" {% if option == page_meta.page_size %}selected{% endif %}>{{ option }}</option>
                 {% endfor %}

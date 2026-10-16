@@ -1,15 +1,22 @@
 {% extends "base.html" %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{{ static_url(request, 'css/auth.css') }}?v=20260630b">
+<link rel="stylesheet" href="{{ static_url(request, 'css/auth.css') }}?v=20261016b">
 {% endblock %}
 
 {% block content %}
 <section class="panel auth-panel auth-admin-panel">
-    <div class="panel-title-wrap">
-        <h2 class="panel-title">User Management</h2>
-        <p class="panel-subtitle">Create tester accounts and control download permissions.</p>
-    </div>
+    <header class="auth-page-hero">
+        <div>
+            <span class="auth-eyebrow">Administration</span>
+            <h2 class="panel-title">User Management</h2>
+            <p class="panel-subtitle">Create accounts, assign roles, and manage access from one place.</p>
+        </div>
+        <div class="auth-user-total" aria-label="{{ users|length }} total accounts">
+            <strong>{{ users|length }}</strong>
+            <span>Total accounts</span>
+        </div>
+    </header>
 
     {% if message %}
     <div class="auth-message auth-success">{{ message }}</div>
@@ -18,122 +25,196 @@
     <div class="auth-message auth-error">{{ error }}</div>
     {% endif %}
 
-    <section class="auth-card">
-        <h3>Create User</h3>
+    <section class="auth-card auth-create-card">
+        <header class="auth-card-header">
+            <span class="auth-card-icon" aria-hidden="true">+</span>
+            <div>
+                <h3>Create a new user</h3>
+                <p>Add login credentials and choose the account's initial permissions.</p>
+            </div>
+        </header>
         <form method="post" action="{{ route_url(request, 'admin_create_user') }}" class="auth-create-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="auth-field">
                 <label for="new_username">Username</label>
-                <input id="new_username" name="username" type="text" autocomplete="off" required>
+                <input id="new_username" name="username" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="e.g. Researcher01" aria-describedby="new-username-help" required>
+                <small id="new-username-help" class="auth-field-hint">Case-sensitive</small>
             </div>
 
             <div class="auth-field">
                 <label for="new_password">Password</label>
                 <div class="auth-password-stack">
-                    <input id="new_password" name="password" type="password" autocomplete="new-password" data-password-field="create-password" required>
-                    <label class="auth-check auth-show-password">
-                        <input type="checkbox" data-password-toggle data-password-target="create-password">
-                        <span>Show</span>
-                    </label>
+                    <div class="auth-password-control">
+                        <input id="new_password" name="password" type="password" autocomplete="new-password" minlength="{{ password_min_length }}" maxlength="{{ password_max_length }}" placeholder="At least {{ password_min_length }} characters" data-password-field="create-password" required>
+                        <button type="button" class="auth-password-toggle" data-password-toggle data-password-target="create-password" aria-pressed="false" aria-label="Show password" title="Show password">
+                            <svg class="auth-eye-open" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                                <circle cx="12" cy="12" r="2.7"></circle>
+                            </svg>
+                            <svg class="auth-eye-closed" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d="m3 3 18 18"></path>
+                                <path d="M10.6 6.2A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a15.7 15.7 0 0 1-2.2 2.8M6.3 6.3C3.9 8 2.5 12 2.5 12s3.5 6 9.5 6a9.7 9.7 0 0 0 3.2-.5M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <div class="auth-field">
                 <label for="new_role">Role</label>
                 <select id="new_role" name="role">
-                    <option value="tester">tester</option>
-                    <option value="admin">admin</option>
+                    <option value="tester">User</option>
+                    <option value="admin">Administrator</option>
                 </select>
             </div>
 
             <div class="auth-field auth-field-check">
                 <span class="auth-field-label">Downloads</span>
-                <label class="auth-check">
+                <label class="auth-switch-row">
                     <input type="checkbox" name="can_download" checked>
+                    <span class="auth-switch" aria-hidden="true"></span>
                     <span>Allow downloads</span>
                 </label>
             </div>
 
             <div class="auth-field auth-field-submit">
                 <span class="auth-field-label" aria-hidden="true">&nbsp;</span>
-                <button type="submit" class="auth-primary-btn">Create</button>
+                <button type="submit" class="auth-primary-btn">
+                    <span aria-hidden="true">+</span>
+                    Create user
+                </button>
             </div>
         </form>
     </section>
 
     <section class="auth-card">
-        <h3>Existing Users</h3>
+        <header class="auth-card-header auth-list-header">
+            <div>
+                <h3>Existing users</h3>
+                <p>Update roles and permissions, reset passwords, or remove accounts.</p>
+            </div>
+            <span class="auth-record-count" data-user-count>{{ users|length }} {% if users|length == 1 %}user{% else %}users{% endif %}</span>
+        </header>
         {% if users %}
-        <div class="auth-table-wrap">
+        <div class="auth-user-search">
+            <label for="user_search">Search users</label>
+            <div class="auth-search-input-wrap">
+                <svg class="auth-search-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="6.5"></circle>
+                    <path d="m16 16 4 4"></path>
+                </svg>
+                <input id="user_search" type="search" placeholder="Search by username" autocomplete="off" data-user-search>
+                <button type="button" class="auth-search-clear" data-user-search-clear hidden>Clear</button>
+            </div>
+            <span class="auth-search-status" data-user-search-status aria-live="polite"></span>
+        </div>
+        <div class="auth-table-wrap" data-user-table>
             <table class="auth-user-table">
                 <thead>
                     <tr>
-                        <th>Username</th>
+                        <th>User</th>
                         <th>Role</th>
                         <th>Downloads</th>
                         <th>Active</th>
-                        <th>Lock</th>
+                        <th>Status</th>
                         <th>Last login</th>
-                        <th>New password</th>
-                        <th>Action</th>
+                        <th>Set new password</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for user in users %}
-                    <tr>
-                        <td>{{ user.username }}</td>
-                        <td>
-                                <select name="role" form="user-form-{{ user.user_id }}" aria-label="Role for {{ user.username }}">
-                                    <option value="tester" {% if user.role == 'tester' %}selected{% endif %}>tester</option>
-                                    <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>admin</option>
-                                </select>
+                    <tr data-user-row data-username="{{ user.username|lower|e }}">
+                        <td data-label="User">
+                            <div class="auth-user-identity">
+                                <span class="auth-avatar" aria-hidden="true">{{ user.username[0]|upper }}</span>
+                                <span class="auth-user-copy">
+                                    <strong>{{ user.username }}</strong>
+                                    <small>
+                                        Account #{{ user.user_id }}
+                                        {% if current_user and current_user.user_id == user.user_id %}
+                                        <span class="auth-you-badge">You</span>
+                                        {% endif %}
+                                    </small>
+                                </span>
+                            </div>
                         </td>
-                        <td>
-                                <label class="auth-check auth-check-compact">
-                                    <input type="checkbox" name="can_download" form="user-form-{{ user.user_id }}" {% if user.can_download %}checked{% endif %}>
-                                    <span>Allow</span>
-                                </label>
+                        <td data-label="Role">
+                            <select name="role" form="user-form-{{ user.user_id }}" aria-label="Role for {{ user.username }}">
+                                <option value="tester" {% if user.role == 'tester' %}selected{% endif %}>User</option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Administrator</option>
+                            </select>
                         </td>
-                        <td>
-                                <label class="auth-check auth-check-compact">
-                                    <input type="checkbox" name="is_active" form="user-form-{{ user.user_id }}" {% if user.is_active %}checked{% endif %}>
-                                    <span>Active</span>
-                                </label>
+                        <td data-label="Downloads">
+                            <label class="auth-switch-row auth-switch-compact">
+                                <input type="checkbox" name="can_download" form="user-form-{{ user.user_id }}" {% if user.can_download %}checked{% endif %}>
+                                <span class="auth-switch" aria-hidden="true"></span>
+                                <span>Allow</span>
+                            </label>
                         </td>
-                        <td>
+                        <td data-label="Active">
+                            <label class="auth-switch-row auth-switch-compact">
+                                <input type="checkbox" name="is_active" form="user-form-{{ user.user_id }}" {% if user.is_active %}checked{% endif %}>
+                                <span class="auth-switch" aria-hidden="true"></span>
+                                <span>Active</span>
+                            </label>
+                        </td>
+                        <td data-label="Status">
                             {% if user.is_locked %}
-                            <span class="auth-lock-badge">Locked</span>
+                            <span class="auth-status-badge auth-status-locked"><span aria-hidden="true"></span>Locked</span>
                             {% else %}
-                            <span class="auth-unlocked-badge">OK</span>
+                            <span class="auth-status-badge auth-status-ok"><span aria-hidden="true"></span>Healthy</span>
                             {% endif %}
-                            <div class="auth-failed-count">{{ user.failed_login_count }} failed</div>
+                            <div class="auth-failed-count">{{ user.failed_login_count }} failed {% if user.failed_login_count == 1 %}attempt{% else %}attempts{% endif %}</div>
                         </td>
-                        <td>{{ user.last_login_at or '-' }}</td>
-                        <td>
-                                <div class="auth-password-stack">
-                                    <input id="reset-password-{{ user.user_id }}" name="new_password" form="user-form-{{ user.user_id }}" type="password" autocomplete="new-password" placeholder="Leave unchanged" data-password-field="reset-password-{{ user.user_id }}">
-                                    <label class="auth-check auth-show-password">
-                                        <input type="checkbox" data-password-toggle data-password-target="reset-password-{{ user.user_id }}">
-                                        <span>Show</span>
-                                    </label>
+                        <td data-label="Last login">
+                            {% if user.last_login_at %}
+                            <time class="auth-last-login" datetime="{{ user.last_login_at }}">{{ user.last_login_at[:19]|replace('T', ' ') }}</time>
+                            {% else %}
+                            <span class="auth-never">Never</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="Set new password">
+                            <div class="auth-password-stack auth-reset-stack">
+                                <div class="auth-password-control">
+                                    <input id="reset-password-{{ user.user_id }}" name="new_password" form="user-form-{{ user.user_id }}" type="password" autocomplete="new-password" minlength="{{ password_min_length }}" maxlength="{{ password_max_length }}" placeholder="Keep current password" data-password-field="reset-password-{{ user.user_id }}">
+                                    <button type="button" class="auth-password-toggle" data-password-toggle data-password-target="reset-password-{{ user.user_id }}" aria-pressed="false" aria-label="Show new password for {{ user.username }}" title="Show password">
+                                        <svg class="auth-eye-open" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"></path>
+                                            <circle cx="12" cy="12" r="2.7"></circle>
+                                        </svg>
+                                        <svg class="auth-eye-closed" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path d="m3 3 18 18"></path>
+                                            <path d="M10.6 6.2A10.9 10.9 0 0 1 12 6c6 0 9.5 6 9.5 6a15.7 15.7 0 0 1-2.2 2.8M6.3 6.3C3.9 8 2.5 12 2.5 12s3.5 6 9.5 6a9.7 9.7 0 0 0 3.2-.5M9.9 9.9a3 3 0 0 0 4.2 4.2"></path>
+                                        </svg>
+                                    </button>
                                 </div>
+                            </div>
                         </td>
-                        <td>
-                                <div class="auth-action-stack">
+                        <td data-label="Actions">
+                            <div class="auth-action-stack">
                                 <form id="user-form-{{ user.user_id }}" method="post" action="{{ route_url(request, 'admin_update_user') }}" class="auth-row-form">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="user_id" value="{{ user.user_id }}">
-                                    <button type="submit" class="auth-secondary-btn">Save</button>
+                                    <button type="submit" class="auth-secondary-btn">Save changes</button>
                                 </form>
-                                <form method="post" action="{{ route_url(request, 'admin_delete_user') }}" class="auth-row-form" onsubmit="return confirm('Delete user {{ user.username }}? This cannot be undone.');">
+                                {% if current_user and current_user.user_id == user.user_id %}
+                                <button type="button" class="auth-danger-btn" disabled title="You cannot delete the account you are currently using.">Current account</button>
+                                {% else %}
+                                <form method="post" action="{{ route_url(request, 'admin_delete_user') }}" class="auth-row-form" data-confirm-delete="{{ user.username|e }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                     <input type="hidden" name="user_id" value="{{ user.user_id }}">
                                     <button type="submit" class="auth-danger-btn">Delete</button>
                                 </form>
-                                </div>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        <div class="auth-empty auth-search-empty" data-user-search-empty hidden>No users match this username.</div>
         {% else %}
         <div class="auth-empty">No users found.</div>
         {% endif %}
@@ -142,5 +223,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ static_url(request, 'js/auth.js') }}?v=20260630a"></script>
+<script src="{{ static_url(request, 'js/auth.js') }}?v=20261016b"></script>
 {% endblock %}

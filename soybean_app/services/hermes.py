@@ -695,6 +695,8 @@ def _hermes_protein_service(payload: dict[str, Any]) -> dict[str, Any]:
     limit = _hermes_payload_limit(payload)
     site_limit = _hermes_payload_limit({"limit": payload.get("site_limit", limit)}, default=limit)
     tokens = split_identifier_query(query) or [query]
+    if len(tokens) > 1 and not bool(payload.get("_allow_multiple_identifiers")):
+        raise ValueError(MULTI_IDENTIFIER_ADMIN_ONLY_MESSAGE)
     summary_rows = build_protein_summary_rows(tokens[:limit], species)
     records: list[dict[str, Any]] = []
 

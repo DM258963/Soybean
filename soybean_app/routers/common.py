@@ -40,6 +40,9 @@ def render_template(
         "downloads_public_enabled": PTM_DOWNLOADS_ENABLED,
         "downloads_enabled": current_downloads_enabled(request),
         "downloads_disabled_message": DOWNLOADS_DISABLED_MESSAGE,
+        "csrf_token": create_csrf_token(int(current_user["user_id"]) if current_user else 0),
+        "password_min_length": PTM_AUTH_PASSWORD_MIN_LENGTH,
+        "password_max_length": PTM_AUTH_PASSWORD_MAX_LENGTH,
     }
     if extra_context:
         context.update(extra_context)
@@ -75,20 +78,32 @@ def safe_next_url(value: str, fallback: str = "/") -> str:
     return candidate
 
 
-def set_auth_cookie(response: Response, user_id: int) -> None:
+def set_auth_cookie(response: Response, user_id: int, session_version: int) -> None:
     max_age = PTM_AUTH_SESSION_DAYS * 24 * 60 * 60
     response.set_cookie(
         PTM_AUTH_COOKIE_NAME,
-        create_session_token(user_id),
+        create_session_token(user_id, session_version),
         max_age=max_age,
         httponly=True,
         secure=PTM_AUTH_COOKIE_SECURE,
         samesite="lax",
+        path="/",
     )
 
 
 def clear_auth_cookie(response: Response) -> None:
-    response.delete_cookie(PTM_AUTH_COOKIE_NAME)
+    response.delete_cookie(
+        PTM_AUTH_COOKIE_NAME,
+        httponly=True,
+        secure=PTM_AUTH_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+
+
+def require_valid_csrf(form: dict[str, str], user_id: int = 0) -> None:
+    if not verify_csrf_token(form.get("csrf_token", ""), user_id):
+        raise HTTPException(status_code=403, detail="Invalid or expired form token. Please refresh the page and try again.")
 
 
 def login_redirect_response(request: Request) -> RedirectResponse:
