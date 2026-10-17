@@ -1,4 +1,5 @@
 import mimetypes
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
@@ -15,9 +16,26 @@ from soybean_app.services import (
 )
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    try:
+        ensure_bootstrap_admin()
+    except Exception:
+        pass
+    try:
+        refresh_home_ptm_stats_cache()
+    except Exception:
+        pass
+
+    try:
+        yield
+    finally:
+        close_database_pool()
+
+
 def create_app() -> FastAPI:
     validate_auth_security_config()
-    app = FastAPI(title="Soybean PTM Viewer 1.0")
+    app = FastAPI(title="Soybean PTM Viewer 1.0", lifespan=lifespan)
     mimetypes.add_type("application/javascript", ".js")
     mimetypes.add_type("text/css", ".css")
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -54,21 +72,6 @@ def create_app() -> FastAPI:
             response.headers["Cache-Control"] = "no-store"
             response.headers["Pragma"] = "no-cache"
         return response
-
-    @app.on_event("shutdown")
-    def close_db_pool() -> None:
-        close_database_pool()
-
-    @app.on_event("startup")
-    def warm_home_stats_on_startup() -> None:
-        try:
-            ensure_bootstrap_admin()
-        except Exception:
-            pass
-        try:
-            refresh_home_ptm_stats_cache()
-        except Exception:
-            pass
 
     app.include_router(auth.router)
     app.include_router(home.router)
