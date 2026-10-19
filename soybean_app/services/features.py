@@ -427,7 +427,7 @@ def _mean(values: list[float]) -> float | None:
 
 
 @lru_cache(maxsize=4)
-def load_expression_dataset(species: str) -> dict[str, dict[str, Any]]:
+def _load_expression_dataset_from_excel(species: str) -> dict[str, dict[str, Any]]:
     species_key = normalize_species_key(species)
     config = EXPRESSION_DATASETS.get(species_key)
     if not config:
@@ -498,6 +498,127 @@ def load_expression_dataset(species: str) -> dict[str, dict[str, Any]]:
         workbook.close()
 
     return dataset
+
+
+def _expression_database_ready() -> bool:
+    return all(
+        table_exists(table_name)
+        for table_name in (
+            "expression_dataset",
+            "expression_protein",
+            "expression_measurement",
+        )
+    )
+
+
+def _load_expression_dataset_from_postgres(species: str) -> dict[str, dict[str, Any]]:
+    species_key = normalize_species_key(species)
+    quoted_species = pg_quote(species_key)
+    protein_rows = run_psql_csv_query(
+        f"""
+        SELECT
+          p.expression_protein_id,
+          p.protein_accession,
+          p.protein_description,
+          p.gene_name,
+          d.dataset_name,
+          d.source_sheet
+        FROM ptm.expression_protein AS p
+        JOIN ptm.expression_dataset AS d
+          ON d.dataset_id = p.dataset_id
+        WHERE d.dataset_key = {quoted_species}
+        ORDER BY p.expression_protein_id;
+        """
+    )
+    if not protein_rows:
+        return {}
+
+    timepoint_order = {timepoint: index for index, timepoint in enumerate(EXPRESSION_TIMEPOINTS)}
+    dataset: dict[str, dict[str, Any]] = {}
+    record_by_id: dict[str, dict[str, Any]] = {}
+    for row in protein_rows:
+        accession = str(row.get("protein_accession", "")).strip()
+        if not accession:
+            continue
+        record = {
+            "protein_accession": accession,
+            "protein_description": str(row.get("protein_description", "")).strip(),
+            "gene_name": str(row.get("gene_name", "")).strip(),
+            "dataset_label": str(row.get("dataset_name", "")).strip(),
+            "dataset_display": str(row.get("source_sheet", "")).strip(),
+            "timepoints": [],
+        }
+        dataset[accession] = record
+        record_by_id[str(row.get("expression_protein_id", ""))] = record
+
+    measurement_rows = run_psql_csv_query(
+        f"""
+        SELECT
+          m.expression_protein_id,
+          m.timepoint,
+          AVG(m.abundance) AS mean_abundance,
+          STDDEV_SAMP(m.abundance) AS sd_abundance,
+          JSON_AGG(m.abundance ORDER BY m.replicate_no) AS replicates,
+          COUNT(*) AS replicate_count
+        FROM ptm.expression_measurement AS m
+        JOIN ptm.expression_protein AS p
+          ON p.expression_protein_id = m.expression_protein_id
+        JOIN ptm.expression_dataset AS d
+          ON d.dataset_id = p.dataset_id
+        WHERE d.dataset_key = {quoted_species}
+        GROUP BY m.expression_protein_id, m.timepoint
+        ORDER BY m.expression_protein_id, m.timepoint;
+        """
+    )
+    for row in measurement_rows:
+        record = record_by_id.get(str(row.get("expression_protein_id", "")))
+        timepoint = str(row.get("timepoint", "")).strip()
+        if record is None or timepoint not in timepoint_order:
+            continue
+        try:
+            raw_replicates = json.loads(str(row.get("replicates", "[]")))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            raw_replicates = []
+        replicates = [
+            number
+            for number in (_safe_float(value) for value in raw_replicates)
+            if number is not None
+        ]
+        record["timepoints"].append(
+            {
+                "label": timepoint,
+                "mean": _safe_float(row.get("mean_abundance")),
+                "sd": _safe_float(row.get("sd_abundance")),
+                "replicates": replicates,
+                "replicate_count": len(replicates),
+            }
+        )
+
+    for record in dataset.values():
+        populated = {str(point.get("label", "")): point for point in record["timepoints"]}
+        record["timepoints"] = [
+            populated.get(
+                timepoint,
+                {
+                    "label": timepoint,
+                    "mean": None,
+                    "sd": None,
+                    "replicates": [],
+                    "replicate_count": 0,
+                },
+            )
+            for timepoint in EXPRESSION_TIMEPOINTS
+        ]
+
+    return dataset
+
+
+@lru_cache(maxsize=4)
+def load_expression_dataset(species: str) -> dict[str, dict[str, Any]]:
+    species_key = normalize_species_key(species)
+    if _expression_database_ready():
+        return _load_expression_dataset_from_postgres(species_key)
+    return _load_expression_dataset_from_excel(species_key)
 
 
 def build_expression_profile(accession: str, species: str) -> dict[str, Any]:

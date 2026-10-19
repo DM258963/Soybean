@@ -263,6 +263,8 @@ BEGIN
       cog_description = EXCLUDED.cog_description,
       source_batch_id = EXCLUDED.source_batch_id;
 
+  PERFORM ptm.refresh_identifier_lookup();
+
   RETURN v_batch_id;
 END;
 $$;

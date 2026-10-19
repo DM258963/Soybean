@@ -75,7 +75,7 @@ async def proteome_search(
             else:
                 message = f'No expression profile found for "{gene_query}" in {selected_species_label}.'
         except Exception:
-            message = "Expression profile query failed. Please check the expression dataset files."
+            message = "Expression profile query failed. Please check the PostgreSQL expression-data import."
 
     if search_tab == "sequence" and sequence_query:
         try:
