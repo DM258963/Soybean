@@ -1,24 +1,25 @@
 from soybean_app.services import *
+from soybean_app.research_agent.settings import get_agent_settings
 
-HERMES_TOOL_RECORD_LIMIT_DEFAULT = int(os.getenv("HERMES_TOOL_RECORD_LIMIT_DEFAULT", "10"))
-HERMES_TOOL_RECORD_LIMIT_MAX = int(os.getenv("HERMES_TOOL_RECORD_LIMIT_MAX", "50"))
-HERMES_BLAST_SEQUENCE_MAX = int(os.getenv("HERMES_BLAST_SEQUENCE_MAX", "5000"))
-HERMES_OLLAMA_ENABLED = _env_bool("HERMES_OLLAMA_ENABLED", True)
-HERMES_OLLAMA_BASE_URL = os.getenv("HERMES_OLLAMA_BASE_URL", "http://127.0.0.1:11434/v1").rstrip("/")
-HERMES_OLLAMA_MODEL = os.getenv("HERMES_OLLAMA_MODEL", "qwen3:8b")
-HERMES_OLLAMA_TIMEOUT = float(os.getenv("HERMES_OLLAMA_TIMEOUT", "30"))
-HERMES_OLLAMA_ROUTER_TIMEOUT = float(os.getenv("HERMES_OLLAMA_ROUTER_TIMEOUT", "8"))
-HERMES_OLLAMA_SUMMARY_TIMEOUT = float(os.getenv("HERMES_OLLAMA_SUMMARY_TIMEOUT", "12"))
-HERMES_CHAT_PROVIDER = os.getenv("HERMES_CHAT_PROVIDER", "ollama").strip().lower()
-HERMES_CHAT_ENABLED = _env_bool("HERMES_CHAT_ENABLED", HERMES_OLLAMA_ENABLED)
-HERMES_ASSISTANT_ENABLED = _env_bool("HERMES_ASSISTANT_ENABLED", HERMES_CHAT_ENABLED)
-HERMES_CHAT_BASE_URL = os.getenv("HERMES_CHAT_BASE_URL", HERMES_OLLAMA_BASE_URL).rstrip("/")
-HERMES_CHAT_MODEL = os.getenv("HERMES_CHAT_MODEL", HERMES_OLLAMA_MODEL)
-HERMES_CHAT_API_KEY = os.getenv("HERMES_CHAT_API_KEY", "")
-HERMES_AGENT_DIR = PACKAGE_DIR / os.getenv("HERMES_AGENT_DIR", "hermes_agent")
-HERMES_AGENT_FILE = HERMES_AGENT_DIR / "agent.md"
-HERMES_SKILL_DIR = HERMES_AGENT_DIR / "skills"
-HERMES_SKILL_FILES = [
+_AGENT_SETTINGS = get_agent_settings()
+
+AGENT_TOOL_RESULT_LIMIT_DEFAULT = _AGENT_SETTINGS.tool_result_limit_default
+AGENT_TOOL_RESULT_LIMIT_MAX = _AGENT_SETTINGS.tool_result_limit_max
+AGENT_BLAST_SEQUENCE_MAX = _AGENT_SETTINGS.blast_sequence_max
+AGENT_LLM_ENABLED = _AGENT_SETTINGS.llm_enabled
+AGENT_LLM_BASE_URL = _AGENT_SETTINGS.llm_base_url
+AGENT_LLM_MODEL = _AGENT_SETTINGS.llm_model
+AGENT_LLM_TIMEOUT = _AGENT_SETTINGS.llm_timeout
+AGENT_ROUTER_TIMEOUT = _AGENT_SETTINGS.router_timeout
+AGENT_SUMMARY_TIMEOUT = _AGENT_SETTINGS.summary_timeout
+AGENT_LLM_PROVIDER = _AGENT_SETTINGS.llm_provider
+AGENT_RUNTIME_ENABLED = _AGENT_SETTINGS.runtime_enabled
+AGENT_LLM_API_KEY = _AGENT_SETTINGS.llm_api_key
+AGENT_DEFINITION_DIR = PACKAGE_DIR / _AGENT_SETTINGS.definition_dir
+AGENT_PROMPT_FILE = AGENT_DEFINITION_DIR / "prompts" / "system.md"
+AGENT_SKILL_DIR = AGENT_DEFINITION_DIR / "skills"
+AGENT_SKILL_FILES = [
+    "domain_terminology.md",
     "protein_search.md",
     "ptm_search.md",
     "blast_search.md",
@@ -26,102 +27,13 @@ HERMES_SKILL_FILES = [
 ]
 
 
-def _require_hermes_assistant_enabled() -> None:
-    if not HERMES_ASSISTANT_ENABLED:
+def _require_agent_runtime_enabled() -> None:
+    if not AGENT_RUNTIME_ENABLED:
         raise HTTPException(status_code=404, detail="Soybean Assistant is disabled.")
 
 
-HERMES_ROUTER_TEST_CASES = [
-    {
-        "message": "查一下 GLYMA_10G142500",
-        "expected_tool": "protein_search",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "I1LAY3 有哪些修饰位点？",
-        "expected_tool": "protein_search",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "soybean GLYMA_10G142500 的 PTM 概况",
-        "expected_tool": "protein_search",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "查询 Bradyrhizobium diazoefficiens 的 nifD",
-        "expected_tool": "protein_search",
-        "expected_species": "bradyrhizobium_diazoefficiens",
-    },
-    {
-        "message": "查一下 motif S[ph]P 的 PTM 模式",
-        "expected_tool": "ptm_search",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "PTM expression K[ub] 限定肽段",
-        "expected_tool": "ptm_search",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "blast MAAAAAAAAGGGGGGGGGGSSSSSSSSSS",
-        "expected_tool": "blast_search",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "用 Bradyrhizobium 序列 MTEYKLVVVGAGGVGKSALTIQLIQNHFVDEYDPTIEDSYRKQ 做 blast",
-        "expected_tool": "blast_search",
-        "expected_species": "bradyrhizobium_diazoefficiens",
-    },
-    {
-        "message": "hello",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "what is PTM?",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "我要查询大豆的ptm应该使用哪个功能",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "查某个大豆基因有哪些修饰位点应该用哪个功能",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "我要查 PTM motif 应该去哪里查",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "氨基酸序列找相似蛋白用哪个模块",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "蛋白表达谱在哪查",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "批量蛋白列表分析应该使用哪个功能",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-    {
-        "message": "原始数据表在哪里下载",
-        "expected_tool": "none",
-        "expected_species": "glycine_max",
-    },
-]
-
-
-def _hermes_ollama_endpoint() -> str:
-    base = HERMES_CHAT_BASE_URL.rstrip("/")
+def _agent_openai_endpoint() -> str:
+    base = AGENT_LLM_BASE_URL.rstrip("/")
     if base.endswith("/chat/completions"):
         return base
     if base.endswith("/v1"):
@@ -129,28 +41,28 @@ def _hermes_ollama_endpoint() -> str:
     return f"{base}/v1/chat/completions"
 
 
-def _hermes_ollama_native_endpoint() -> str:
-    base = HERMES_CHAT_BASE_URL.rstrip("/")
+def _agent_ollama_native_endpoint() -> str:
+    base = AGENT_LLM_BASE_URL.rstrip("/")
     if base.endswith("/v1"):
         base = base[:-3]
     return f"{base}/api/chat"
 
 
-def _hermes_call_ollama(
+def _agent_call_model(
     messages: list[dict[str, str]],
     *,
     temperature: float = 0.1,
     max_tokens: int = 512,
-    timeout: float = HERMES_OLLAMA_TIMEOUT,
+    timeout: float = AGENT_LLM_TIMEOUT,
     json_mode: bool = False,
 ) -> str:
-    if not HERMES_CHAT_ENABLED or HERMES_CHAT_PROVIDER in {"", "none", "off", "disabled"}:
-        raise RuntimeError("Hermes chat model integration is disabled.")
-    provider = HERMES_CHAT_PROVIDER
+    if not AGENT_LLM_ENABLED or AGENT_LLM_PROVIDER in {"", "none", "off", "disabled"}:
+        raise RuntimeError("Agent LLM integration is disabled.")
+    provider = AGENT_LLM_PROVIDER
 
-    if provider == "ollama":
+    if provider == "llm":
         payload = {
-            "model": HERMES_CHAT_MODEL,
+            "model": AGENT_LLM_MODEL,
             "messages": messages,
             "stream": False,
             "think": False,
@@ -162,7 +74,7 @@ def _hermes_call_ollama(
         if json_mode:
             payload["format"] = "json"
         request = urllib.request.Request(
-            _hermes_ollama_native_endpoint(),
+            _agent_ollama_native_endpoint(),
             data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
@@ -179,14 +91,14 @@ def _hermes_call_ollama(
         else:
             native_error = RuntimeError("Ollama returned an empty native response.")
 
-        host = urllib.parse.urlparse(HERMES_CHAT_BASE_URL).hostname or ""
+        host = urllib.parse.urlparse(AGENT_LLM_BASE_URL).hostname or ""
         if host in {"127.0.0.1", "localhost", "::1"}:
             raise RuntimeError(f"Ollama native request failed: {native_error}") from native_error
     else:
         native_error = None
 
     fallback_payload = {
-        "model": HERMES_CHAT_MODEL,
+        "model": AGENT_LLM_MODEL,
         "messages": messages,
         "temperature": temperature,
         "max_tokens": max_tokens,
@@ -195,10 +107,10 @@ def _hermes_call_ollama(
     if json_mode:
         fallback_payload["response_format"] = {"type": "json_object"}
     headers = {"Content-Type": "application/json"}
-    if HERMES_CHAT_API_KEY:
-        headers["Authorization"] = f"Bearer {HERMES_CHAT_API_KEY}"
+    if AGENT_LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {AGENT_LLM_API_KEY}"
     request = urllib.request.Request(
-        _hermes_ollama_endpoint(),
+        _agent_openai_endpoint(),
         data=json.dumps(fallback_payload, ensure_ascii=False).encode("utf-8"),
         headers=headers,
         method="POST",
@@ -207,16 +119,16 @@ def _hermes_call_ollama(
         with urllib.request.urlopen(request, timeout=timeout) as response:
             body = json.loads(response.read().decode("utf-8"))
     except Exception as fallback_exc:
-        if provider == "ollama":
+        if provider == "llm":
             raise RuntimeError(f"Ollama request failed: native={native_error}; openai={fallback_exc}") from fallback_exc
         raise RuntimeError(f"Chat provider request failed: {fallback_exc}") from fallback_exc
     choices = body.get("choices") or []
     if not choices:
-        raise RuntimeError("Ollama returned no choices.")
+        raise RuntimeError("The configured LLM provider returned no choices.")
     message = choices[0].get("message") or {}
     content = message.get("content")
     if not isinstance(content, str) or not content.strip():
-        raise RuntimeError("Ollama returned an empty message.")
+        raise RuntimeError("The configured LLM provider returned an empty message.")
     return content.strip()
 
 
@@ -238,43 +150,43 @@ def _extract_json_object(text: str) -> dict[str, Any]:
     return value
 
 
-def _hermes_read_text_file(path: Path, fallback: str = "") -> str:
+def _agent_read_text_file(path: Path, fallback: str = "") -> str:
     try:
         return path.read_text(encoding="utf-8").strip()
     except OSError:
         return fallback.strip()
 
 
-def _hermes_skill_paths() -> list[Path]:
-    preferred = [HERMES_SKILL_DIR / name for name in HERMES_SKILL_FILES]
+def _agent_skill_paths() -> list[Path]:
+    preferred = [AGENT_SKILL_DIR / name for name in AGENT_SKILL_FILES]
     preferred_existing = [path for path in preferred if path.exists()]
     preferred_names = {path.name for path in preferred}
     extra = sorted(
-        path for path in HERMES_SKILL_DIR.glob("*.md")
+        path for path in AGENT_SKILL_DIR.glob("*.md")
         if path.name not in preferred_names
-    ) if HERMES_SKILL_DIR.exists() else []
+    ) if AGENT_SKILL_DIR.exists() else []
     return [*preferred_existing, *extra]
 
 
-def _hermes_skill_docs() -> str:
+def _agent_skill_docs() -> str:
     docs: list[str] = []
-    for path in _hermes_skill_paths():
-        content = _hermes_read_text_file(path)
+    for path in _agent_skill_paths():
+        content = _agent_read_text_file(path)
         if content:
             docs.append(f"<!-- skill: {path.name} -->\n{content}")
     return "\n\n".join(docs)
 
 
-def _hermes_router_prompt() -> str:
-    agent_text = _hermes_read_text_file(
-        HERMES_AGENT_FILE,
+def _agent_router_prompt() -> str:
+    agent_text = _agent_read_text_file(
+        AGENT_PROMPT_FILE,
         (
             "You are the website assistant for Soybean PTM Viewer.\n"
             "Return exactly one JSON object when routing.\n"
             "Use only these tool values: protein_search, ptm_search, blast_search, none."
         ),
     )
-    skill_text = _hermes_skill_docs()
+    skill_text = _agent_skill_docs()
     if not skill_text:
         skill_text = (
             "# protein_search\nUse for gene, protein accession, transcript id, or PTM overview.\n\n"
@@ -290,35 +202,35 @@ def _hermes_router_prompt() -> str:
     )
 
 
-def _hermes_agent_text() -> str:
-    return _hermes_read_text_file(
-        HERMES_AGENT_FILE,
+def _agent_agent_text() -> str:
+    return _agent_read_text_file(
+        AGENT_PROMPT_FILE,
         "You are the website assistant for Soybean PTM Viewer.",
     )
 
 
-def _hermes_normalize_species_from_text(text: str) -> str:
+def _agent_normalize_species_from_text(text: str) -> str:
     lowered = text.lower()
     if any(term in lowered for term in ["bradyrhizobium", "diazoefficiens", "rhizobium", "nif"]):
         return "bradyrhizobium_diazoefficiens"
     return DEFAULT_SPECIES
 
 
-def _hermes_sequence_from_text(text: str) -> str:
+def _agent_sequence_from_text(text: str) -> str:
     candidates = re.findall(r"[ACDEFGHIKLMNPQRSTVWYXBZUOJ]{10,}", text.upper())
     if not candidates:
         return ""
     return max(candidates, key=len)
 
 
-def _hermes_looks_like_sequence(text: str) -> bool:
+def _agent_looks_like_sequence(text: str) -> bool:
     if re.search(r"[\u4e00-\u9fff]", text):
         return False
     clean = "".join(text.split()).upper()
     return len(clean) >= 20 and bool(re.fullmatch(r"[ACDEFGHIKLMNPQRSTVWYXBZUOJ]+", clean))
 
 
-def _hermes_identifier_candidate(text: str) -> str:
+def _agent_identifier_candidate(text: str) -> str:
     patterns = [
         r"(?<![A-Za-z0-9])GLYMA[._-]?\d+G\d+(?:[._-]?P)?(?![A-Za-z0-9])",
         r"(?<![A-Za-z0-9])\d+G\d+(?:[._-]?P)?(?![A-Za-z0-9])",
@@ -341,11 +253,11 @@ def _hermes_identifier_candidate(text: str) -> str:
     return ""
 
 
-def _hermes_looks_like_identifier(text: str) -> bool:
-    return bool(_hermes_identifier_candidate(text))
+def _agent_looks_like_identifier(text: str) -> bool:
+    return bool(_agent_identifier_candidate(text))
 
 
-def _hermes_looks_like_ptm_query(text: str) -> bool:
+def _agent_looks_like_ptm_query(text: str) -> bool:
     clean = text.strip()
     lowered = clean.lower()
     if "[" in clean and "]" in clean:
@@ -357,21 +269,21 @@ def _hermes_looks_like_ptm_query(text: str) -> bool:
     return any(term in lowered or term in clean for term in ptm_terms)
 
 
-def _hermes_looks_like_tool_query(text: str) -> bool:
+def _agent_looks_like_tool_query(text: str) -> bool:
     return (
-        _hermes_looks_like_sequence(text)
-        or _hermes_looks_like_ptm_query(text)
-        or _hermes_looks_like_identifier(text)
+        _agent_looks_like_sequence(text)
+        or _agent_looks_like_ptm_query(text)
+        or _agent_looks_like_identifier(text)
     )
 
 
-def _hermes_contains_any(text: str, markers: list[str]) -> bool:
+def _agent_contains_any(text: str, markers: list[str]) -> bool:
     lowered = text.lower()
     return any(marker.lower() in lowered for marker in markers)
 
 
-def _hermes_wants_navigation_recommendation(text: str) -> bool:
-    return _hermes_contains_any(
+def _agent_wants_navigation_recommendation(text: str) -> bool:
+    return _agent_contains_any(
         text,
         [
             "which function", "which feature", "which module", "which page",
@@ -385,14 +297,14 @@ def _hermes_wants_navigation_recommendation(text: str) -> bool:
     )
 
 
-def _hermes_is_general_message(text: str) -> bool:
+def _agent_is_general_message(text: str) -> bool:
     clean = text.strip()
     if not clean:
         return True
     lowered = clean.lower()
-    if _hermes_wants_navigation_recommendation(clean):
+    if _agent_wants_navigation_recommendation(clean):
         return True
-    if _hermes_looks_like_tool_query(clean):
+    if _agent_looks_like_tool_query(clean):
         return False
 
     exact_messages = {
@@ -417,13 +329,13 @@ def _hermes_is_general_message(text: str) -> bool:
     return False
 
 
-def _hermes_navigation_answer(message: str) -> str:
-    if not _hermes_wants_navigation_recommendation(message):
+def _agent_navigation_answer(message: str) -> str:
+    if not _agent_wants_navigation_recommendation(message):
         return ""
 
     lowered = message.lower()
     text = message
-    if _hermes_contains_any(
+    if _agent_contains_any(
         text,
         [
             "blast", "sequence", "similarity", "homolog", "alignment",
@@ -435,7 +347,7 @@ def _hermes_navigation_answer(message: str) -> str:
             "它会在本地蛋白库里找相似蛋白，并保留命中的 PTM 注释，方便看同源蛋白的修饰位点。"
         )
 
-    if _hermes_contains_any(
+    if _agent_contains_any(
         text,
         [
             "expression", "abundance", "profile", "quantification", "proteome",
@@ -447,7 +359,7 @@ def _hermes_navigation_answer(message: str) -> str:
             "输入基因名、蛋白 accession 或序列后，可以查看对应的表达 profile。"
         )
 
-    if _hermes_contains_any(
+    if _agent_contains_any(
         text,
         [
             "list", "analysis", "enrichment", "statistics", "protein list",
@@ -459,13 +371,13 @@ def _hermes_navigation_answer(message: str) -> str:
             "它适合做列表级 PTM 统计、类型分布和后续结果导出。"
         )
 
-    if _hermes_contains_any(text, ["submit", "upload", "contribute", "提交", "上传", "贡献"]):
+    if _agent_contains_any(text, ["submit", "upload", "contribute", "提交", "上传", "贡献"]):
         return (
             "如果你要提交新的 PTM 数据，建议用 Data/Submit Data。"
             "那里适合上传数据和查看提交模板。"
         )
 
-    if _hermes_contains_any(
+    if _agent_contains_any(
         text,
         [
             "download", "raw", "csv", "table", "dataset", "data",
@@ -477,7 +389,7 @@ def _hermes_navigation_answer(message: str) -> str:
             "如果只是浏览已经整理好的 PTM 记录，可以用 Browse。"
         )
 
-    if _hermes_contains_any(
+    if _agent_contains_any(
         text,
         [
             "browse", "curated", "records", "catalog", "浏览", "记录", "条目", "整理好的", "已整理",
@@ -488,13 +400,13 @@ def _hermes_navigation_answer(message: str) -> str:
             "如果你已经有具体基因、蛋白或 motif，再分别用 Protein Search 或 PTM Search。"
         )
 
-    if _hermes_contains_any(text, ["about", "citation", "contact", "version", "关于", "引用", "联系", "版本"]):
+    if _agent_contains_any(text, ["about", "citation", "contact", "version", "关于", "引用", "联系", "版本"]):
         return (
             "如果你要查看项目介绍、版本信息、引用方式或联系方式，建议用 About。"
             "数据查询类问题再回到 Protein Search、PTM Search、Proteome 或 BLAST。"
         )
 
-    if _hermes_contains_any(
+    if _agent_contains_any(
         text,
         [
             "motif", "pattern", "crosstalk", "co-occurring", "ptm expression",
@@ -511,7 +423,7 @@ def _hermes_navigation_answer(message: str) -> str:
         "glyma", "nif", "基因", "蛋白", "编号", "登录号", "转录本",
         "修饰位点", "位点", "ptm概况", "ptm 概况", "有哪些修饰", "某个",
     ]
-    if _hermes_contains_any(text, protein_markers):
+    if _agent_contains_any(text, protein_markers):
         return (
             "如果你要查某个大豆基因或蛋白的 PTM 概况、修饰位点和序列标注，建议用 Protein Search。"
             "可以输入基因名、UniProt accession、转录本 ID 或短编号。"
@@ -530,7 +442,7 @@ def _hermes_navigation_answer(message: str) -> str:
     )
 
 
-def _hermes_general_fallback_answer(message: str) -> str:
+def _agent_general_fallback_answer(message: str) -> str:
     clean = message.strip().lower()
     greeting_messages = {
         "hi", "hello", "hey", "\u4f60\u597d", "\u60a8\u597d", "\u55e8",
@@ -542,7 +454,7 @@ def _hermes_general_fallback_answer(message: str) -> str:
             "\u86cb\u767d\u3001PTM \u4f4d\u70b9\u6216 BLAST \u5e8f\u5217\uff0c"
             "\u4e5f\u53ef\u4ee5\u7b80\u8981\u89e3\u91ca\u9875\u9762\u91cc\u7684\u5b57\u6bb5\u3002"
         )
-    navigation_answer = _hermes_navigation_answer(message)
+    navigation_answer = _agent_navigation_answer(message)
     if navigation_answer:
         return navigation_answer
     page_help_markers = [
@@ -563,20 +475,20 @@ def _hermes_general_fallback_answer(message: str) -> str:
     )
 
 
-def _hermes_identifier_from_text(text: str) -> str:
-    return _hermes_identifier_candidate(text) or text.strip()
+def _agent_identifier_from_text(text: str) -> str:
+    return _agent_identifier_candidate(text) or text.strip()
 
 
-def _hermes_route_with_ollama(message: str, payload: dict[str, Any]) -> dict[str, Any]:
-    prompt = _hermes_router_prompt()
-    content = _hermes_call_ollama(
+def _agent_route_with_model(message: str, payload: dict[str, Any]) -> dict[str, Any]:
+    prompt = _agent_router_prompt()
+    content = _agent_call_model(
         [
             {"role": "system", "content": prompt},
             {"role": "user", "content": message},
         ],
         temperature=0,
         max_tokens=240,
-        timeout=HERMES_OLLAMA_ROUTER_TIMEOUT,
+        timeout=AGENT_ROUTER_TIMEOUT,
         json_mode=True,
     )
     routed = _extract_json_object(content)
@@ -596,51 +508,51 @@ def _hermes_route_with_ollama(message: str, payload: dict[str, Any]) -> dict[str
         raise ValueError(f"Unsupported routed tool: {tool}")
 
     if tool == "protein_search":
-        candidate = _hermes_identifier_candidate(str(arguments.get("query") or message))
+        candidate = _agent_identifier_candidate(str(arguments.get("query") or message))
         if not candidate:
             tool = "none"
             arguments = {"question": message}
         else:
             arguments["query"] = candidate
-    elif tool == "ptm_search" and not _hermes_looks_like_ptm_query(str(arguments.get("expression") or message)):
+    elif tool == "ptm_search" and not _agent_looks_like_ptm_query(str(arguments.get("expression") or message)):
         tool = "none"
         arguments = {"question": message}
-    elif tool == "blast_search" and not (_hermes_sequence_from_text(str(arguments.get("sequence") or message)) or "blast" in message.lower()):
+    elif tool == "blast_search" and not (_agent_sequence_from_text(str(arguments.get("sequence") or message)) or "blast" in message.lower()):
         tool = "none"
         arguments = {"question": message}
 
-    species = normalize_species_key(str(arguments.get("species") or payload.get("species") or _hermes_normalize_species_from_text(message)))
+    species = normalize_species_key(str(arguments.get("species") or payload.get("species") or _agent_normalize_species_from_text(message)))
     arguments["species"] = species
 
     if tool == "protein_search":
         raw_identifier = str(arguments.get("query") or payload.get("query") or message).strip()
-        arguments["query"] = _hermes_identifier_from_text(raw_identifier)
+        arguments["query"] = _agent_identifier_from_text(raw_identifier)
     elif tool == "ptm_search":
         arguments["expression"] = str(arguments.get("expression") or payload.get("expression") or payload.get("query") or message).strip()
     elif tool == "blast_search":
         raw_sequence = str(arguments.get("sequence") or payload.get("sequence") or payload.get("query") or message).strip()
-        arguments["sequence"] = _hermes_sequence_from_text(raw_sequence) or raw_sequence
+        arguments["sequence"] = _agent_sequence_from_text(raw_sequence) or raw_sequence
     else:
         arguments["question"] = str(arguments.get("question") or message).strip()
-    return {"tool": tool, "arguments": arguments, "router": "ollama"}
+    return {"tool": tool, "arguments": arguments, "router": "llm"}
 
 
-def _hermes_route_with_rules(payload: dict[str, Any]) -> dict[str, Any]:
-    message = _hermes_payload_text(payload, "message", "query", "text", "identifier", "gene_name", "expression", "sequence")
-    tool = _hermes_detect_tool(payload)
-    species = _hermes_payload_species(payload)
+def _agent_route_with_rules(payload: dict[str, Any]) -> dict[str, Any]:
+    message = _agent_payload_text(payload, "message", "query", "text", "identifier", "gene_name", "expression", "sequence")
+    tool = _agent_detect_tool(payload)
+    species = _agent_payload_species(payload)
     if not payload.get("species"):
-        species = _hermes_normalize_species_from_text(message)
+        species = _agent_normalize_species_from_text(message)
     if tool == "none":
         return {"tool": tool, "arguments": {"question": message, "species": species}, "router": "rules"}
     if tool == "protein_search":
-        return {"tool": tool, "arguments": {"query": _hermes_identifier_from_text(message), "species": species}, "router": "rules"}
+        return {"tool": tool, "arguments": {"query": _agent_identifier_from_text(message), "species": species}, "router": "rules"}
     if tool == "ptm_search":
         return {"tool": tool, "arguments": {"expression": message, "species": species}, "router": "rules"}
-    return {"tool": tool, "arguments": {"sequence": _hermes_sequence_from_text(message) or message, "species": species}, "router": "rules"}
+    return {"tool": tool, "arguments": {"sequence": _agent_sequence_from_text(message) or message, "species": species}, "router": "rules"}
 
 
-def _hermes_payload_text(payload: dict[str, Any], *names: str) -> str:
+def _agent_payload_text(payload: dict[str, Any], *names: str) -> str:
     for name in names:
         value = payload.get(name)
         if isinstance(value, str) and value.strip():
@@ -648,23 +560,23 @@ def _hermes_payload_text(payload: dict[str, Any], *names: str) -> str:
     return ""
 
 
-def _hermes_payload_limit(payload: dict[str, Any], default: int = HERMES_TOOL_RECORD_LIMIT_DEFAULT) -> int:
+def _agent_payload_limit(payload: dict[str, Any], default: int = AGENT_TOOL_RESULT_LIMIT_DEFAULT) -> int:
     try:
         raw_value = int(payload.get("limit", default))
     except (TypeError, ValueError):
         raw_value = default
-    return _clamp_int(raw_value, 1, HERMES_TOOL_RECORD_LIMIT_MAX)
+    return _clamp_int(raw_value, 1, AGENT_TOOL_RESULT_LIMIT_MAX)
 
 
-def _hermes_payload_species(payload: dict[str, Any]) -> str:
+def _agent_payload_species(payload: dict[str, Any]) -> str:
     return normalize_species_key(str(payload.get("species") or DEFAULT_SPECIES))
 
 
-def _hermes_species_label(species: str) -> str:
+def _agent_species_label(species: str) -> str:
     return str(get_species_option(species).get("display", species))
 
 
-def _hermes_round(value: Any, digits: int = 4) -> Any:
+def _agent_round(value: Any, digits: int = 4) -> Any:
     if isinstance(value, float):
         if math.isnan(value) or math.isinf(value):
             return None
@@ -672,66 +584,93 @@ def _hermes_round(value: Any, digits: int = 4) -> Any:
     return value
 
 
-def _hermes_site_record(row: dict[str, Any]) -> dict[str, Any]:
+def _agent_site_record(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "position": row.get("Position"),
         "amino_acid": row.get("Amino acid", ""),
         "ptm_types": row.get("PTM types", ""),
         "subcellular_localization": row.get("Subcellular localization", ""),
-        "w4_mean_linear": _hermes_round(row.get("W4 mean linear")),
-        "w12_mean_linear": _hermes_round(row.get("W12 mean linear")),
-        "w12_w4_ratio": _hermes_round(row.get("W12/W4 ratio")),
-        "w12_w4_p_value": _hermes_round(row.get("W12/W4 P value")),
+        "w4_mean_linear": _agent_round(row.get("W4 mean linear")),
+        "w12_mean_linear": _agent_round(row.get("W12 mean linear")),
+        "w12_w4_ratio": _agent_round(row.get("W12/W4 ratio")),
+        "w12_w4_p_value": _agent_round(row.get("W12/W4 P value")),
         "w12_w4_type": row.get("W12/W4 Type", ""),
     }
 
 
-def _hermes_protein_service(payload: dict[str, Any]) -> dict[str, Any]:
-    query = _hermes_payload_text(payload, "query", "identifier", "gene_name")
+def _agent_protein_service(payload: dict[str, Any]) -> dict[str, Any]:
+    query = _agent_payload_text(payload, "query", "identifier", "gene_name")
     if not query:
         raise ValueError("Missing query.")
 
-    species = _hermes_payload_species(payload)
-    limit = _hermes_payload_limit(payload)
-    site_limit = _hermes_payload_limit({"limit": payload.get("site_limit", limit)}, default=limit)
+    species = _agent_payload_species(payload)
+    limit = _agent_payload_limit(payload)
+    site_limit = _agent_payload_limit({"limit": payload.get("site_limit", limit)}, default=limit)
     tokens = split_identifier_query(query) or [query]
     if len(tokens) > 1 and not bool(payload.get("_allow_multiple_identifiers")):
         raise ValueError(MULTI_IDENTIFIER_ADMIN_ONLY_MESSAGE)
     summary_rows = build_protein_summary_rows(tokens[:limit], species)
     records: list[dict[str, Any]] = []
 
+    is_multi_identifier_query = len(tokens) > 1
     for row in summary_rows[:limit]:
         select_key = str(row.get("select_key") or row.get("gene_name") or row.get("protein_accession") or row.get("query") or "")
-        records.append(
-            {
-                "query": row.get("query", ""),
-                "display_id": row.get("display_id", ""),
-                "gene_name": row.get("gene_name", ""),
-                "protein_accession": row.get("protein_accession", ""),
-                "organism": row.get("organism", ""),
-                "protein_description": row.get("protein_description", ""),
-                "transcript_id": row.get("transcript_id", ""),
-                "gene_names": row.get("gene_names", ""),
-                "modification_type_count": row.get("modification_type_count", 0),
-                "total_sites": row.get("total_sites", 0),
-                "ptm_summary": row.get("ptm_summary", ""),
-                "status": row.get("status", ""),
-                "has_result": bool(row.get("has_result")),
-                "detail_url": (
-                    "/search/protein?"
-                    + urllib.parse.urlencode(
-                        {
-                            "tab": "identifier",
-                            "view": "detail",
-                            "species": species,
-                            "gene_name": select_key,
-                        }
-                    )
-                    if select_key
-                    else ""
-                ),
-            }
-        )
+        record = {
+            "query": row.get("query", ""),
+            "display_id": row.get("display_id", ""),
+            "gene_name": row.get("gene_name", ""),
+            "protein_accession": row.get("protein_accession", ""),
+            "organism": row.get("organism", ""),
+            "protein_description": row.get("protein_description", ""),
+            "transcript_id": row.get("transcript_id", ""),
+            "gene_names": row.get("gene_names", ""),
+            "modification_type_count": row.get("modification_type_count", 0),
+            "total_sites": row.get("total_sites", 0),
+            "ptm_summary": row.get("ptm_summary", ""),
+            "status": row.get("status", ""),
+            "has_result": bool(row.get("has_result")),
+            "detail_url": (
+                "/search/protein?"
+                + urllib.parse.urlencode(
+                    {
+                        "tab": "identifier",
+                        "view": "detail",
+                        "species": species,
+                        "gene_name": select_key,
+                    }
+                )
+                if select_key
+                else ""
+            ),
+            "download_url": (
+                "/downloads/protein-sites.csv?"
+                + urllib.parse.urlencode(
+                    {
+                        "species": species,
+                        "identifier": select_key,
+                    }
+                )
+                if select_key and bool(row.get("has_result"))
+                else ""
+            ),
+        }
+
+        # Multi-protein comparisons need per-protein residue evidence. Keep the
+        # existing single-protein `detail` response stable, and enrich each
+        # comparison record only after the server has authorized batch access.
+        if is_multi_identifier_query and record["has_result"] and select_key:
+            matched_rows = keep_primary_target_rows(
+                fetch_sites_for_identifier(select_key, species)
+            )
+            result_rows, _ = build_result_rows_and_meta(matched_rows)
+            record["site_count"] = len(result_rows)
+            record["sites"] = [
+                _agent_site_record(site_row)
+                for site_row in result_rows[:site_limit]
+            ]
+            record["sites_truncated"] = len(result_rows) > site_limit
+
+        records.append(record)
 
     detail: dict[str, Any] = {}
     if len(tokens) == 1:
@@ -740,7 +679,7 @@ def _hermes_protein_service(payload: dict[str, Any]) -> dict[str, Any]:
         if result_rows:
             detail = {
                 "meta": result_meta,
-                "sites": [_hermes_site_record(row) for row in result_rows[:site_limit]],
+                "sites": [_agent_site_record(row) for row in result_rows[:site_limit]],
                 "site_count": len(result_rows),
                 "sites_truncated": len(result_rows) > site_limit,
             }
@@ -751,29 +690,33 @@ def _hermes_protein_service(payload: dict[str, Any]) -> dict[str, Any]:
         "tool": "protein_search",
         "query": query,
         "species": species,
-        "species_label": _hermes_species_label(species),
+        "species_label": _agent_species_label(species),
         "summary": {
             "submitted_identifiers": len(tokens),
             "matched_records": matched_count,
             "returned_records": len(records),
         },
+        "ptm_glossary": {
+            code: str(style.get("label") or code)
+            for code, style in PTM_STYLE.items()
+        },
         "message": (
             f"Found {matched_count} matched protein record(s) for {query}."
             if matched_count
-            else f"No protein/PTM record found for {query} in {_hermes_species_label(species)}."
+            else f"No protein/PTM record found for {query} in {_agent_species_label(species)}."
         ),
         "records": records,
         "detail": detail,
     }
 
 
-def _hermes_ptm_service(payload: dict[str, Any]) -> dict[str, Any]:
-    expression = _hermes_payload_text(payload, "expression", "query")
+def _agent_ptm_service(payload: dict[str, Any]) -> dict[str, Any]:
+    expression = _agent_payload_text(payload, "expression", "query")
     if not expression:
         raise ValueError("Missing expression.")
 
-    species = _hermes_payload_species(payload)
-    limit = _hermes_payload_limit(payload)
+    species = _agent_payload_species(payload)
+    limit = _agent_payload_limit(payload)
     sequence_length = _clamp_int(int(payload.get("sequence_length", 10) or 10), 3, 30)
     representative_only = bool(payload.get("representative_only", True))
     peptides_unique = bool(payload.get("peptides_unique", False))
@@ -818,7 +761,7 @@ def _hermes_ptm_service(payload: dict[str, Any]) -> dict[str, Any]:
         "tool": "ptm_search",
         "query": expression,
         "species": species,
-        "species_label": _hermes_species_label(species),
+        "species_label": _agent_species_label(species),
         "summary": {
             **summary,
             "returned_records": len(records),
@@ -829,24 +772,24 @@ def _hermes_ptm_service(payload: dict[str, Any]) -> dict[str, Any]:
             f"Found {summary.get('matched_sites', 0)} matched PTM site(s) across "
             f"{summary.get('matched_proteins', 0)} protein(s)."
             if site_rows
-            else f'No PTM records matched "{expression}" in {_hermes_species_label(species)}.'
+            else f'No PTM records matched "{expression}" in {_agent_species_label(species)}.'
         ),
         "records": records,
     }
 
 
-def _hermes_blast_service(payload: dict[str, Any]) -> dict[str, Any]:
-    sequence = _hermes_payload_text(payload, "sequence", "query")
+def _agent_blast_service(payload: dict[str, Any]) -> dict[str, Any]:
+    sequence = _agent_payload_text(payload, "sequence", "query")
     normalized_sequence = normalize_sequence_input(sequence)
     if not normalized_sequence:
         raise ValueError("Missing sequence.")
     if len(normalized_sequence) < 10:
         raise ValueError("Sequence is too short. Please input at least 10 amino acids.")
-    if len(normalized_sequence) > HERMES_BLAST_SEQUENCE_MAX:
-        raise ValueError(f"Sequence is too long for the chat API. Limit is {HERMES_BLAST_SEQUENCE_MAX} amino acids.")
+    if len(normalized_sequence) > AGENT_BLAST_SEQUENCE_MAX:
+        raise ValueError(f"Sequence is too long for the chat API. Limit is {AGENT_BLAST_SEQUENCE_MAX} amino acids.")
 
-    species = _hermes_payload_species(payload)
-    limit = _hermes_payload_limit({"limit": payload.get("max_hits", payload.get("limit", BLAST_DEFAULT_MAX_HITS))}, default=BLAST_DEFAULT_MAX_HITS)
+    species = _agent_payload_species(payload)
+    limit = _agent_payload_limit({"limit": payload.get("max_hits", payload.get("limit", BLAST_DEFAULT_MAX_HITS))}, default=BLAST_DEFAULT_MAX_HITS)
     identity_min = _clamp_float(float(payload.get("identity_min", BLAST_DEFAULT_IDENTITY_MIN) or BLAST_DEFAULT_IDENTITY_MIN), 0, 100)
     e_value_max = _clamp_float(float(payload.get("e_value_max", BLAST_DEFAULT_E_VALUE_MAX) or BLAST_DEFAULT_E_VALUE_MAX), 0, 1000)
     query_cover_min = _clamp_float(float(payload.get("query_cover_min", BLAST_DEFAULT_QUERY_COVER_MIN) or BLAST_DEFAULT_QUERY_COVER_MIN), 0, 100)
@@ -893,18 +836,18 @@ def _hermes_blast_service(payload: dict[str, Any]) -> dict[str, Any]:
         "ok": True,
         "tool": "blast_search",
         "species": species,
-        "species_label": _hermes_species_label(species),
+        "species_label": _agent_species_label(species),
         "summary": blast_summary,
         "message": (
-            f"Found {len(records)} BLAST hit(s) in {_hermes_species_label(species)}."
+            f"Found {len(records)} BLAST hit(s) in {_agent_species_label(species)}."
             if records
-            else f"No BLAST hits passed the selected thresholds in {_hermes_species_label(species)}."
+            else f"No BLAST hits passed the selected thresholds in {_agent_species_label(species)}."
         ),
         "records": records,
     }
 
 
-def _hermes_detect_tool(payload: dict[str, Any]) -> str:
+def _agent_detect_tool(payload: dict[str, Any]) -> str:
     explicit = str(payload.get("tool") or payload.get("intent") or "").strip().lower()
     aliases = {
         "protein": "protein_search",
@@ -925,57 +868,57 @@ def _hermes_detect_tool(payload: dict[str, Any]) -> str:
     if explicit in aliases:
         return aliases[explicit]
 
-    query = _hermes_payload_text(payload, "message", "query", "text", "expression", "sequence")
-    if _hermes_is_general_message(query):
+    query = _agent_payload_text(payload, "message", "query", "text", "expression", "sequence")
+    if _agent_is_general_message(query):
         return "none"
     lowered = query.lower()
-    if "blast" in lowered or _hermes_looks_like_sequence(query):
+    if "blast" in lowered or _agent_looks_like_sequence(query):
         return "blast_search"
-    if _hermes_looks_like_ptm_query(query):
+    if _agent_looks_like_ptm_query(query):
         return "ptm_search"
-    if _hermes_looks_like_identifier(query):
+    if _agent_looks_like_identifier(query):
         return "protein_search"
     return "none"
 
 
-def _hermes_query_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    message = _hermes_payload_text(payload, "message", "query", "text", "identifier", "gene_name", "expression", "sequence")
+def _agent_query_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    message = _agent_payload_text(payload, "message", "query", "text", "identifier", "gene_name", "expression", "sequence")
     if payload.get("tool") or payload.get("intent"):
-        route = _hermes_route_with_rules(payload)
-    elif _hermes_is_general_message(message):
-        route = _hermes_route_with_rules(payload)
+        route = _agent_route_with_rules(payload)
+    elif _agent_is_general_message(message):
+        route = _agent_route_with_rules(payload)
     else:
         try:
-            route = _hermes_route_with_ollama(message, payload)
+            route = _agent_route_with_model(message, payload)
         except Exception:
-            route = _hermes_route_with_rules(payload)
+            route = _agent_route_with_rules(payload)
 
     tool = str(route.get("tool") or "protein_search")
     arguments = route.get("arguments") if isinstance(route.get("arguments"), dict) else {}
     routed_payload = {**payload, **arguments}
-    routed_payload.setdefault("limit", payload.get("limit", HERMES_TOOL_RECORD_LIMIT_DEFAULT))
-    routed_payload.setdefault("site_limit", payload.get("site_limit", HERMES_TOOL_RECORD_LIMIT_DEFAULT))
+    routed_payload.setdefault("limit", payload.get("limit", AGENT_TOOL_RESULT_LIMIT_DEFAULT))
+    routed_payload.setdefault("site_limit", payload.get("site_limit", AGENT_TOOL_RESULT_LIMIT_DEFAULT))
 
     if tool == "none":
-        return _hermes_general_answer(message)
+        return _agent_general_answer(message)
     if tool == "protein_search":
         routed_payload.setdefault("query", message)
-        result = _hermes_protein_service(routed_payload)
+        result = _agent_protein_service(routed_payload)
         result["router"] = route.get("router", "rules")
         return result
     if tool == "ptm_search":
         routed_payload.setdefault("expression", message)
-        result = _hermes_ptm_service(routed_payload)
+        result = _agent_ptm_service(routed_payload)
         result["router"] = route.get("router", "rules")
         return result
     routed_payload.setdefault("sequence", message)
-    result = _hermes_blast_service(routed_payload)
+    result = _agent_blast_service(routed_payload)
     result["router"] = route.get("router", "rules")
     return result
 
 
-def _hermes_general_answer(message: str) -> dict[str, Any]:
-    fallback = _hermes_general_fallback_answer(message)
+def _agent_general_answer(message: str) -> dict[str, Any]:
+    fallback = _agent_general_fallback_answer(message)
     answer = fallback
     page_help_markers = [
         "website", "webpage", "page", "function", "feature", "how to use",
@@ -985,17 +928,17 @@ def _hermes_general_answer(message: str) -> dict[str, Any]:
     simple_general = message.strip().lower() in {
         "hi", "hello", "hey", "\u4f60\u597d", "\u60a8\u597d", "\u55e8",
         "\u65e9\u4e0a\u597d", "\u4e0b\u5348\u597d", "\u665a\u4e0a\u597d",
-    } or _hermes_wants_navigation_recommendation(message) or any(
+    } or _agent_wants_navigation_recommendation(message) or any(
         marker in message.strip().lower() or marker in message for marker in page_help_markers
     )
-    if HERMES_CHAT_ENABLED and message and not simple_general:
+    if AGENT_LLM_ENABLED and message and not simple_general:
         try:
-            answer = _hermes_call_ollama(
+            answer = _agent_call_model(
                 [
                     {
                         "role": "system",
                         "content": (
-                            f"{_hermes_agent_text()}\n\n"
+                            f"{_agent_agent_text()}\n\n"
                             "Answer in the user's language. Keep it short. "
                             "Do not claim database results unless a result context is provided."
                         ),
@@ -1004,7 +947,7 @@ def _hermes_general_answer(message: str) -> dict[str, Any]:
                 ],
                 temperature=0.2,
                 max_tokens=260,
-                timeout=HERMES_OLLAMA_SUMMARY_TIMEOUT,
+                timeout=AGENT_SUMMARY_TIMEOUT,
             )
         except Exception:
             answer = fallback
@@ -1019,7 +962,7 @@ def _hermes_general_answer(message: str) -> dict[str, Any]:
     }
 
 
-def _hermes_compact_answer(result: dict[str, Any]) -> str:
+def _agent_compact_answer(result: dict[str, Any]) -> str:
     if not result.get("ok"):
         return str(result.get("message") or "No result.")
 
@@ -1076,7 +1019,7 @@ def _hermes_compact_answer(result: dict[str, Any]) -> str:
     return str(result.get("message") or "Done.")
 
 
-def _hermes_answer_context(result: dict[str, Any]) -> dict[str, Any]:
+def _agent_answer_context(result: dict[str, Any]) -> dict[str, Any]:
     context = {
         "ok": result.get("ok"),
         "message": result.get("message"),
@@ -1099,17 +1042,17 @@ def _hermes_answer_context(result: dict[str, Any]) -> dict[str, Any]:
     return context
 
 
-def _hermes_summarized_answer(user_message: str, result: dict[str, Any]) -> str:
-    fallback = _hermes_compact_answer(result)
-    if not HERMES_CHAT_ENABLED or not result.get("ok"):
+def _agent_summarized_answer(user_message: str, result: dict[str, Any]) -> str:
+    fallback = _agent_compact_answer(result)
+    if not AGENT_LLM_ENABLED or not result.get("ok"):
         return fallback
     try:
-        return _hermes_call_ollama(
+        return _agent_call_model(
             [
                 {
                     "role": "system",
                     "content": (
-                        f"{_hermes_agent_text()}\n\n"
+                        f"{_agent_agent_text()}\n\n"
                         "Answer the user's question using only the provided query result JSON. "
                         "Do not expose internal tool names, routing, JSON, or species selectors. "
                         "Keep the answer concise: 1-3 short sentences. "
@@ -1121,13 +1064,13 @@ def _hermes_summarized_answer(user_message: str, result: dict[str, Any]) -> str:
                     "role": "user",
                     "content": (
                         f"User question:\n{user_message}\n\n"
-                        f"Query result JSON:\n{json.dumps(_hermes_answer_context(result), ensure_ascii=False)}"
+                        f"Query result JSON:\n{json.dumps(_agent_answer_context(result), ensure_ascii=False)}"
                     ),
                 },
             ],
             temperature=0.2,
             max_tokens=320,
-            timeout=HERMES_OLLAMA_SUMMARY_TIMEOUT,
+            timeout=AGENT_SUMMARY_TIMEOUT,
         )
     except Exception:
         return fallback

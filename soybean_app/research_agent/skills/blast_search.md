@@ -9,7 +9,7 @@ Use this skill when the user provides an amino-acid sequence or explicitly asks 
 
 ## Endpoint
 
-POST `/api/hermes/blast`
+POST `/api/agent/blast`
 
 ## Examples
 

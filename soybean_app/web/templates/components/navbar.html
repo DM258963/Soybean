@@ -13,7 +13,7 @@
                 {% if current_user %}
                     <div class="auth-account-menu" data-account-menu>
                         <button
-                            class="auth-account-chip {% if active == 'auth-users' %}is-active{% endif %}"
+                            class="auth-account-chip {% if active == 'auth-users' or active == 'account-agent-settings' %}is-active{% endif %}"
                             type="button"
                             title="Open account menu for {{ current_user.username }}"
                             aria-haspopup="menu"
@@ -73,6 +73,19 @@
                                     </svg>
                                     <span>Your account uses standard user permissions.</span>
                                 </div>
+                                {% endif %}
+
+                                {% if agent_runtime_enabled %}
+                                <a class="auth-menu-action {% if active == 'account-agent-settings' %}is-active{% endif %}" role="menuitem" href="{{ route_url(request, 'account_agent_settings') }}" {% if active == 'account-agent-settings' %}aria-current="page"{% endif %}>
+                                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                                        <rect x="4" y="4" width="16" height="16" rx="3"></rect>
+                                        <path d="M9 9h6v6H9zM9 1v3m6-3v3M9 20v3m6-3v3M1 9h3m-3 6h3m16-6h3m-3 6h3"></path>
+                                    </svg>
+                                    <span>
+                                        <strong>My Agent model</strong>
+                                        <small>Choose your local model or API</small>
+                                    </span>
+                                </a>
                                 {% endif %}
 
                                 <form class="auth-menu-form" method="post" action="{{ route_url(request, 'logout') }}">

@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from soybean_app.services import *
-from soybean_app.services.hermes import HERMES_ASSISTANT_ENABLED
+from soybean_app.services.agent import AGENT_RUNTIME_ENABLED
 
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 templates.env.globals["static_url"] = lambda request, path: request.url_for("static", path=path)
@@ -33,7 +33,7 @@ def render_template(
         "search_menu": SEARCH_MENU,
         "analysis_menu": ANALYSIS_MENU,
         "data_menu": DATA_MENU,
-        "hermes_assistant_enabled": HERMES_ASSISTANT_ENABLED,
+        "agent_runtime_enabled": AGENT_RUNTIME_ENABLED,
         "auth_enabled": PTM_AUTH_ENABLED,
         "current_user": current_user,
         "user_can_download": current_user_can_download(request),
