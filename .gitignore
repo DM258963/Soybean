@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 venv/
 .env
+.venv/
 
 # Node / frontend
 node_modules/

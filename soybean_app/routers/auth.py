@@ -5,14 +5,23 @@ import threading
 import time
 import urllib.parse
 from datetime import date
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
+import httpx
 
 from soybean_app.services import *
-from soybean_app.services.hermes import *
+from soybean_app.services.agent import *
+from soybean_app.research_agent.configuration import (
+    get_user_agent_settings,
+    get_user_agent_profile_settings,
+    prepare_user_model_discovery,
+    save_user_agent_configuration,
+    user_agent_configuration_status,
+)
 from .common import *
 
 router = APIRouter()
@@ -213,6 +222,263 @@ async def admin_users(request: Request) -> Response:
     if isinstance(admin_user, RedirectResponse):
         return admin_user
     return render_user_admin(request)
+
+
+def _render_agent_settings(
+    request: Request,
+    *,
+    message: str = "",
+    error: str = "",
+) -> HTMLResponse:
+    account_user = get_current_user(request)
+    if not account_user:
+        raise HTTPException(status_code=401, detail="Sign-in required")
+    user_id = int(account_user["user_id"])
+    settings = get_user_agent_settings(user_id)
+    try:
+        status = user_agent_configuration_status(user_id, settings.llm_mode)
+        local_settings = get_user_agent_profile_settings(user_id, "local")
+        api_settings = get_user_agent_profile_settings(user_id, "api")
+        local_status = user_agent_configuration_status(user_id, "local")
+        api_status = user_agent_configuration_status(user_id, "api")
+    except Exception:
+        LOGGER.exception("Unable to read account Agent model configuration status")
+        status = {
+            "source": "environment",
+            "api_key_configured": False,
+            "updated_at": None,
+        }
+        local_settings = replace(
+            settings,
+            llm_mode="local",
+            llm_provider="openai_compatible",
+            llm_base_url="http://127.0.0.1:11434/v1",
+            llm_model="",
+            llm_api_key="",
+        )
+        api_settings = replace(settings, llm_mode="api")
+        local_status = {"source": "environment", "api_key_configured": False}
+        api_status = {
+            "source": "environment",
+            "api_key_configured": bool(api_settings.llm_api_key),
+        }
+        error = error or "Your saved model configuration is temporarily unavailable."
+
+    model_profiles = {
+        "local": {
+            "provider": local_settings.llm_provider,
+            "base_url": local_settings.llm_base_url,
+            "model_name": local_settings.llm_model,
+            "llm_timeout": local_settings.llm_timeout,
+            "api_key_configured": False,
+            "source": local_status.get("source", "environment"),
+        },
+        "api": {
+            "provider": api_settings.llm_provider,
+            "base_url": api_settings.llm_base_url,
+            "model_name": api_settings.llm_model,
+            "llm_timeout": api_settings.llm_timeout,
+            "api_key_configured": bool(api_status.get("api_key_configured")),
+            "source": api_status.get("source", "environment"),
+        },
+    }
+
+    return render_template(
+        request,
+        "account_agent_settings.html",
+        title="My Agent Model",
+        active="account-agent-settings",
+        extra_context={
+            "message": message,
+            "error": error,
+            "agent_settings": settings,
+            "config_status": status,
+            "api_key_configured": bool(status.get("api_key_configured")),
+            "model_profiles": model_profiles,
+        },
+    )
+
+
+def _require_agent_settings_enabled() -> None:
+    if not AGENT_RUNTIME_ENABLED:
+        raise HTTPException(status_code=404, detail="Soybean Assistant is disabled.")
+
+
+def _model_ids_from_payload(payload: Any) -> list[str]:
+    records: Any = []
+    if isinstance(payload, dict):
+        records = payload.get("data")
+        if not isinstance(records, list):
+            records = payload.get("models")
+    if not isinstance(records, list):
+        return []
+
+    model_ids: set[str] = set()
+    for record in records:
+        if isinstance(record, str):
+            model_id = record.strip()
+        elif isinstance(record, dict):
+            model_id = str(
+                record.get("id") or record.get("name") or record.get("model") or ""
+            ).strip()
+        else:
+            continue
+        if model_id and len(model_id) <= 200 and not any(
+            character in model_id for character in "\r\n\x00"
+        ):
+            model_ids.add(model_id)
+    return sorted(model_ids, key=str.casefold)
+
+
+@router.get("/account/agent-settings", response_class=HTMLResponse)
+async def account_agent_settings(request: Request) -> Response:
+    _require_agent_settings_enabled()
+    account_user = get_current_user(request)
+    if not account_user:
+        return login_redirect_response(request)
+    return _render_agent_settings(request)
+
+
+@router.post("/account/agent-settings/models", response_class=JSONResponse)
+async def account_agent_models(request: Request) -> JSONResponse:
+    _require_agent_settings_enabled()
+    account_user = get_current_user(request)
+    if not account_user:
+        raise HTTPException(status_code=401, detail="Sign-in required.")
+
+    raw_body = await request.body()
+    if len(raw_body) > 16_384:
+        raise HTTPException(status_code=413, detail="Model discovery request is too large.")
+    try:
+        payload = json.loads(raw_body or b"{}")
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid model discovery request.") from exc
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Invalid model discovery request.")
+
+    user_id = int(account_user["user_id"])
+    require_valid_csrf({"csrf_token": str(payload.get("csrf_token") or "")}, user_id)
+    try:
+        connection = prepare_user_model_discovery(payload, user_id=user_id)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    endpoint = f"{connection['base_url'].rstrip('/')}/models"
+    headers = {"Accept": "application/json"}
+    if connection["api_key"]:
+        headers["Authorization"] = f"Bearer {connection['api_key']}"
+
+    response_body = bytearray()
+    try:
+        timeout = min(float(connection["llm_timeout"]), 30.0)
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout),
+            follow_redirects=False,
+        ) as client:
+            async with client.stream("GET", endpoint, headers=headers) as response:
+                if response.status_code in {401, 403}:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="The model service rejected the API key or account permissions.",
+                    )
+                if response.is_redirect:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="The model service returned an unsupported redirect.",
+                    )
+                if response.status_code >= 400:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"The model service returned HTTP {response.status_code}.",
+                    )
+                async for chunk in response.aiter_bytes():
+                    response_body.extend(chunk)
+                    if len(response_body) > 1_048_576:
+                        raise HTTPException(
+                            status_code=502,
+                            detail="The model list returned by the service is too large.",
+                        )
+    except HTTPException:
+        raise
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="Model discovery timed out.") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Could not connect to the configured model service.",
+        ) from exc
+
+    try:
+        provider_payload = json.loads(response_body)
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="The model service returned an invalid model list.",
+        ) from exc
+    models = _model_ids_from_payload(provider_payload)
+    if not models:
+        raise HTTPException(
+            status_code=502,
+            detail="The model service did not return any available model IDs.",
+        )
+    return JSONResponse({"models": models, "count": len(models)})
+
+
+@router.post("/account/agent-settings", response_class=HTMLResponse)
+async def account_update_agent_settings(request: Request) -> Response:
+    _require_agent_settings_enabled()
+    account_user = get_current_user(request)
+    if not account_user:
+        return login_redirect_response(request)
+
+    form = await read_urlencoded_form(request)
+    user_id = int(account_user["user_id"])
+    require_valid_csrf(form, user_id)
+    mode = form.get("mode", "").strip().lower()
+    new_api_key = form.get("api_key", "").strip()
+
+    try:
+        saved = save_user_agent_configuration(
+            {
+                "mode": mode,
+                "provider": form.get("provider", ""),
+                "base_url": form.get("base_url", ""),
+                "model_name": form.get("model_name", ""),
+                "api_key": new_api_key,
+                "llm_timeout": form.get("llm_timeout", "30"),
+            },
+            user_id=user_id,
+        )
+        _audit_auth(
+            request,
+            "user_agent_model_config_update",
+            True,
+            actor_user_id=user_id,
+            target_user_id=user_id,
+            username=str(account_user.get("username", "")),
+            detail=f"{saved['mode']}:{saved['provider']}:{saved['model_name']}",
+        )
+        return _render_agent_settings(
+            request,
+            message="Agent model settings saved. New Agent requests will use this configuration.",
+        )
+    except (ValueError, RuntimeError) as exc:
+        _audit_auth(
+            request,
+            "user_agent_model_config_update",
+            False,
+            actor_user_id=user_id,
+            target_user_id=user_id,
+            username=str(account_user.get("username", "")),
+            detail="validation_or_storage_error",
+        )
+        return _render_agent_settings(request, error=str(exc))
+    except Exception:
+        LOGGER.exception("Unable to update Agent model settings")
+        return _render_agent_settings(
+            request,
+            error="Unable to save Agent model settings. Please check the database and server logs.",
+        )
 
 
 @router.post("/admin/users/create", response_class=HTMLResponse)

@@ -1,3 +1,3 @@
-from . import auth, hermes, home, pages, search
+from . import auth, agent, home, pages, search
 
-__all__ = ["auth", "hermes", "home", "pages", "search"]
+__all__ = ["auth", "agent", "home", "pages", "search"]

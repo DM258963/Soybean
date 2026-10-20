@@ -10,7 +10,7 @@ from fastapi import APIRouter, Body, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from soybean_app.services import *
-from soybean_app.services.hermes import *
+from soybean_app.services.agent import *
 from .common import *
 
 router = APIRouter()

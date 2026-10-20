@@ -522,6 +522,16 @@ def run_psql_csv_query(sql: str) -> list[dict[str, str]]:
     raise RuntimeError(str(last_error) if last_error else "Database query failed")
 
 
+def initialize_database_pool() -> PgConnectionPool:
+    """Create the process-wide pool and verify the database before serving requests."""
+
+    pool = get_db_pool()
+    rows = run_psql_csv_query("SELECT 1 AS ready;")
+    if not rows or rows[0].get("ready") != "1":
+        raise RuntimeError("PostgreSQL connection pool health check failed.")
+    return pool
+
+
 def normalize_sequence_input(raw_sequence: str) -> str:
     lines = []
     for line in raw_sequence.splitlines():
@@ -1996,8 +2006,12 @@ def build_uniprot_context(accession: str, result_rows: list[dict[str, Any]], res
 
 
 def close_database_pool() -> None:
-    if _DB_POOL is not None:
-        _DB_POOL.closeall()
+    global _DB_POOL
+    with _DB_POOL_LOCK:
+        pool = _DB_POOL
+        _DB_POOL = None
+    if pool is not None:
+        pool.closeall()
 
 
 __all__ = [name for name in globals() if not name.startswith("__")]

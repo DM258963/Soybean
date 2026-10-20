@@ -2,6 +2,7 @@
 \connect ptm_prod
 
 CREATE SCHEMA IF NOT EXISTS ptm;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
 SET search_path TO ptm, public;
 
@@ -322,3 +323,25 @@ CREATE TABLE IF NOT EXISTS ptm.auth_audit_log (
 
 CREATE INDEX IF NOT EXISTS auth_audit_log_created_at_idx
   ON ptm.auth_audit_log(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS ptm.user_agent_model_profile (
+  user_id BIGINT NOT NULL
+    REFERENCES ptm.app_user(user_id) ON DELETE CASCADE,
+  mode TEXT NOT NULL CHECK (mode IN ('local', 'api')),
+  provider TEXT NOT NULL CHECK (provider IN ('openai', 'groq', 'openai_compatible')),
+  base_url TEXT NOT NULL,
+  model_name TEXT NOT NULL,
+  api_key_cipher BYTEA,
+  llm_timeout DOUBLE PRECISION NOT NULL DEFAULT 30
+    CHECK (llm_timeout >= 1 AND llm_timeout <= 300),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (user_id, mode)
+);
+
+CREATE TABLE IF NOT EXISTS ptm.user_agent_runtime_preference (
+  user_id BIGINT PRIMARY KEY
+    REFERENCES ptm.app_user(user_id) ON DELETE CASCADE,
+  active_mode TEXT NOT NULL CHECK (active_mode IN ('local', 'api')),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -9,7 +9,7 @@ Use this skill when the user asks for a PTM motif, PTM expression pattern, modif
 
 ## Endpoint
 
-POST `/api/hermes/ptm`
+POST `/api/agent/ptm`
 
 ## Examples
 

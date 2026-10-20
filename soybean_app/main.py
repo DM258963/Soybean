@@ -4,13 +4,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 
-from soybean_app.routers import auth, hermes, home, pages, search
+from soybean_app.routers import auth, agent, home, pages, search
+from soybean_app.research_agent.graph import close_agent_runtime, initialize_agent_runtime
+from soybean_app.research_agent.configuration import initialize_user_agent_configuration_storage
 from soybean_app.services import (
     PTM_AUTH_COOKIE_NAME,
     PTM_AUTH_COOKIE_SECURE,
     STATIC_DIR,
     close_database_pool,
     ensure_bootstrap_admin,
+    initialize_database_pool,
     refresh_home_ptm_stats_cache,
     validate_auth_security_config,
 )
@@ -18,18 +21,22 @@ from soybean_app.services import (
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    initialize_database_pool()
     try:
-        ensure_bootstrap_admin()
-    except Exception:
-        pass
-    try:
-        refresh_home_ptm_stats_cache()
-    except Exception:
-        pass
+        initialize_user_agent_configuration_storage()
+        try:
+            ensure_bootstrap_admin()
+        except Exception:
+            pass
+        try:
+            refresh_home_ptm_stats_cache()
+        except Exception:
+            pass
 
-    try:
+        initialize_agent_runtime()
         yield
     finally:
+        close_agent_runtime()
         close_database_pool()
 
 
@@ -75,7 +82,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(home.router)
-    app.include_router(hermes.router)
+    app.include_router(agent.router)
     app.include_router(search.router)
     app.include_router(pages.router)
     return app
